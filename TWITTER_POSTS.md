@@ -15,7 +15,7 @@ Python web projelerinizi VPS/VDS sunucunuzda yönetmek için modern bir kontrol 
 
 🔧 Geliştirmeye katkı yapmakta özgürsünüz! Karşılaştığınız hataları lütfen bildirin.
 
-GitHub: https://github.com/niyoseris/vdspanel
+GitHub: https://github.com/niyoseris/serverpanel
 
 #Python #Flask #OpenSource #DevOps #WebHosting
 
@@ -36,7 +36,7 @@ A modern, self-healing control panel to manage Python web projects on your VPS/V
 
 🔧 Feel free to contribute and improve! Please report any bugs you encounter.
 
-GitHub: https://github.com/niyoseris/vdspanel
+GitHub: https://github.com/niyoseris/serverpanel
 
 #Python #Flask #OpenSource #DevOps #WebHosting
 
