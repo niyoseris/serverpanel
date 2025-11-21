@@ -36,7 +36,7 @@ A modern, **self-healing** web-based control panel to manage Python web projects
     ```
 4.  Create initial admin user:
     ```bash
-    python run.py create-user admin yourpassword
+    python run.py create-user admin your_password
     ```
 5.  Run the panel:
     ```bash
@@ -57,7 +57,7 @@ A modern, **self-healing** web-based control panel to manage Python web projects
     ```
 3.  Create admin user:
     ```bash
-    python run.py create-user admin admin123
+    python run.py create-user admin your_password
     ```
 4.  Run the app:
     ```bash

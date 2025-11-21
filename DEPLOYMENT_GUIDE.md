@@ -76,10 +76,10 @@ http://YOUR_SERVER_IP:5012
 ```
 
 **Varsayılan Giriş Bilgileri:**
-- Kullanıcı adı: `admin`
-- Şifre: `changeme123`
+- Kullanıcı adı: Deployment scriptinde ayarladığınız kullanıcı adı (varsayılan: `admin`)
+- Şifre: Deployment scriptinde ayarladığınız şifre
 
-⚠️ **ÖNEMLİ:** İlk girişten sonra mutlaka şifreyi değiştirin!
+⚠️ **ÖNEMLİ:** Güçlü bir şifre kullanın ve ilk girişten sonra mutlaka şifreyi değiştirin!
 
 ### Servis Yönetimi
 
@@ -204,7 +204,7 @@ ss -tuln | grep 5012
 ```bash
 cd /opt/vdspanel
 source venv/bin/activate
-python run.py create-user admin newpassword
+python run.py create-user admin your_secure_password
 ```
 
 ### Servisi tamamen yeniden kur
@@ -214,7 +214,7 @@ systemctl stop vdspanel
 cd /opt/vdspanel
 rm -rf instance/vdspanel.db
 source venv/bin/activate
-python run.py create-user admin newpassword
+python run.py create-user admin your_secure_password
 systemctl start vdspanel
 ```
 
