@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold gradient-text">
+                    📦 {{ project.name }} - Versions
+                </h1>
+                <p class="mt-2 text-gray-400">
+                    Manage and restore previous versions of your project
+                </p>
+            </div>
+            <div class="flex gap-3">
+                <a href="{{ url_for('main.upload_project') }}"
+                    class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-all duration-200 shadow-lg hover:shadow-indigo-900/30">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    Upload New Version
+                </a>
+                <a href="{{ url_for('main.project_details', id=project.id) }}"
+                    class="inline-flex items-center px-4 py-2 border border-gray-700 rounded-lg text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 transition-all duration-200">
+                    ← Back to Project
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="glass-card rounded-xl p-4 mb-6 border-l-4 border-indigo-500">
+        <div class="flex items-start">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <div class="ml-3 flex-1">
+                <h3 class="text-sm font-medium text-indigo-300">💡 How to Upload a New Version</h3>
+                <div class="mt-1 text-sm text-gray-400">
+                    <p>Click "Upload New Version" above, select <strong>"Update Existing"</strong> mode, choose this project from the dropdown, and upload your new files. The current version will be automatically backed up.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cleanup Section -->
+    {% if version_data|length > 5 %}
+    <div class="glass-card rounded-xl p-6 mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-semibold text-white mb-1">🧹 Cleanup Old Versions</h3>
+                <p class="text-sm text-gray-400">Keep only the most recent versions to save disk space</p>
+            </div>
+            <form method="POST" action="{{ url_for('main.cleanup_versions', id=project.id) }}" class="flex items-center gap-3">
+                <label class="text-sm text-gray-400">Keep:</label>
+                <select name="keep_count" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="3">3 versions</option>
+                    <option value="5" selected>5 versions</option>
+                    <option value="10">10 versions</option>
+                </select>
+                <button type="submit" class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg transition-all duration-200">
+                    Clean Up
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Versions List -->
+    {% if version_data %}
+    <div class="space-y-4">
+        {% for item in version_data %}
+        <div class="glass-card rounded-xl p-6 hover:border-indigo-500/30 transition-all duration-200">
+            <div class="flex items-center justify-between">
+                <!-- Version Info -->
+                <div class="flex items-center space-x-4">
+                    <div class="flex-shrink-0">
+                        <div class="h-12 w-12 rounded-lg bg-indigo-600/20 flex items-center justify-center">
+                            <span class="text-xl font-bold text-indigo-400">v{{ item.version.version_number }}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-white">
+                            Version {{ item.version.version_number }}
+                        </h3>
+                        <p class="text-sm text-gray-400 mt-1">{{ item.version.description }}</p>
+                        <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            <span class="flex items-center gap-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                                {{ item.version.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                            </span>
+                            <span class="flex items-center gap-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+                                </svg>
+                                {{ item.size_mb }} MB
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center gap-2">
+                    <form method="POST" action="{{ url_for('main.restore_version', id=project.id, version_id=item.version.id) }}" 
+                          onsubmit="return confirm('Are you sure you want to restore this version? The current version will be backed up automatically.')">
+                        <button type="submit" 
+                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-all duration-200 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            Restore
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('main.delete_version', id=project.id, version_id=item.version.id) }}" 
+                          onsubmit="return confirm('Are you sure you want to delete this version? This action cannot be undone.')">
+                        <button type="submit" 
+                                class="px-4 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-sm font-medium rounded-lg border border-red-600/30 hover:border-red-600 transition-all duration-200 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                            Delete
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- Empty State -->
+    <div class="glass-card rounded-xl p-12 text-center">
+        <div class="max-w-md mx-auto">
+            <div class="mb-4">
+                <svg class="mx-auto h-16 w-16 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+                </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-white mb-2">No Versions Yet</h3>
+            <p class="text-gray-400 mb-6">
+                Versions will be created automatically when you update this project.
+                Upload a new version to create the first backup.
+            </p>
+            <a href="{{ url_for('main.upload_project') }}" 
+               class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-all duration-200">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                </svg>
+                Upload New Version
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

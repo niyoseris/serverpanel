@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-white tracking-tight">New Project</h1>
+        <p class="mt-2 text-gray-400">Deploy a new application in seconds.</p>
+    </div>
+
+    <div class="glass-card rounded-2xl overflow-hidden shadow-xl">
+        <form action="{{ url_for('main.new_project') }}" method="POST" class="p-8 space-y-8">
+
+            <!-- Project Type Selection -->
+            <div>
+                <label class="text-base font-medium text-gray-300 block mb-4">Project Type</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <label
+                        class="relative flex cursor-pointer rounded-xl border border-gray-700 bg-gray-800/50 p-4 shadow-sm focus:outline-none hover:border-indigo-500 hover:bg-gray-800 transition-all duration-200">
+                        <input type="radio" name="project_type" value="flask" class="sr-only peer" checked>
+                        <span class="flex flex-1">
+                            <span class="flex flex-col">
+                                <span
+                                    class="block text-sm font-medium text-gray-200 peer-checked:text-indigo-400">Flask</span>
+                                <span class="mt-1 flex items-center text-xs text-gray-500">Python Microframework</span>
+                            </span>
+                        </span>
+                        <svg class="h-5 w-5 text-indigo-500 hidden peer-checked:block" viewBox="0 0 20 20"
+                            fill="currentColor">
+                            <path fill-rule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        <div class="absolute -inset-px rounded-xl border-2 border-transparent peer-checked:border-indigo-500 pointer-events-none"
+                            aria-hidden="true"></div>
+                    </label>
+
+                    <label
+                        class="relative flex cursor-pointer rounded-xl border border-gray-700 bg-gray-800/50 p-4 shadow-sm focus:outline-none hover:border-indigo-500 hover:bg-gray-800 transition-all duration-200">
+                        <input type="radio" name="project_type" value="django" class="sr-only peer">
+                        <span class="flex flex-1">
+                            <span class="flex flex-col">
+                                <span
+                                    class="block text-sm font-medium text-gray-200 peer-checked:text-indigo-400">Django</span>
+                                <span class="mt-1 flex items-center text-xs text-gray-500">Full-stack Framework</span>
+                            </span>
+                        </span>
+                        <svg class="h-5 w-5 text-indigo-500 hidden peer-checked:block" viewBox="0 0 20 20"
+                            fill="currentColor">
+                            <path fill-rule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        <div class="absolute -inset-px rounded-xl border-2 border-transparent peer-checked:border-indigo-500 pointer-events-none"
+                            aria-hidden="true"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                <div class="sm:col-span-4">
+                    <label for="name" class="block text-sm font-medium text-gray-300">Project Name</label>
+                    <div class="mt-1">
+                        <input type="text" name="name" id="name" required
+                            class="block w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-3 px-4 transition-colors"
+                            placeholder="my-awesome-app">
+                    </div>
+                </div>
+
+                <div class="sm:col-span-2">
+                    <label for="port" class="block text-sm font-medium text-gray-300">Port</label>
+                    <div class="mt-1">
+                        <input type="number" name="port" id="port" required
+                            class="block w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-3 px-4 transition-colors"
+                            placeholder="5000">
+                    </div>
+                </div>
+
+                <div class="sm:col-span-6">
+                    <label for="path" class="block text-sm font-medium text-gray-300">Project Path (Absolute)</label>
+                    <div class="mt-1">
+                        <input type="text" name="path" id="path" required
+                            class="block w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-3 px-4 transition-colors"
+                            placeholder="/home/user/myproject">
+                    </div>
+                    <p class="mt-2 text-sm text-gray-500">Absolute path to your project directory.</p>
+                </div>
+
+                <div class="sm:col-span-6">
+                    <label for="entry_point" class="block text-sm font-medium text-gray-300">Entry Point
+                        (Optional)</label>
+                    <div class="mt-1">
+                        <input type="text" name="entry_point" id="entry_point"
+                            class="block w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-3 px-4 transition-colors"
+                            placeholder="app:app (Auto-detected if empty)">
+                    </div>
+                    <p class="mt-2 text-sm text-gray-500">Leave empty to auto-detect (app.py, run.py, etc.)</p>
+                </div>
+
+                <div class="sm:col-span-6">
+                    <label for="domain" class="block text-sm font-medium text-gray-300">
+                        Domain Name
+                        <span
+                            class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-700 text-gray-400">Optional</span>
+                    </label>
+                    <div class="mt-1">
+                        <input type="text" name="domain" id="domain"
+                            class="block w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-3 px-4 transition-colors"
+                            placeholder="example.com">
+                    </div>
+                    <p class="mt-2 text-sm text-gray-500">Leave blank to access via IP:Port.</p>
+                </div>
+            </div>
+
+            <div class="pt-5 border-t border-gray-700/50 flex justify-end">
+                <a href="{{ url_for('main.dashboard') }}"
+                    class="bg-transparent py-2 px-4 border border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-300 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 mr-3 transition-colors">
+                    Cancel
+                </a>
+                <button type="submit"
+                    class="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all hover:shadow-lg hover:shadow-indigo-900/30">
+                    Deploy Project
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

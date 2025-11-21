@@ -1,0 +1,198 @@
+#!/bin/bash
+
+# VDS Panel - Server Deployment and Configuration
+# Server: root@YOUR_SERVER_IP
+# Port: YOUR_PORT
+
+set -e
+
+SERVER_USER="root"
+SERVER_IP="YOUR_SERVER_IP"
+SERVER_PATH="/opt/vdspanel"
+APP_PORT="5012"
+ADMIN_USER="admin"
+ADMIN_PASS="CHANGE_THIS_PASSWORD"
+
+echo "=== VDS Panel Deployment ==="
+echo "Server: ${SERVER_USER}@${SERVER_IP}"
+echo "Path: ${SERVER_PATH}"
+echo "Port: ${APP_PORT}"
+echo ""
+
+# Create deployment package
+echo "Creating deployment package..."
+tar -czf /tmp/vdspanel-deploy.tar.gz \
+    --exclude='venv' \
+    --exclude='__pycache__' \
+    --exclude='*.pyc' \
+    --exclude='.git' \
+    --exclude='instance/*.db' \
+    --exclude='uploads' \
+    --exclude='*.log' \
+    --exclude='deploy*.sh' \
+    -C "$(pwd)" .
+
+echo "✓ Package created"
+
+# Upload to server
+echo ""
+echo "Uploading to server..."
+scp /tmp/vdspanel-deploy.tar.gz ${SERVER_USER}@${SERVER_IP}:/tmp/
+
+# Execute installation on server
+echo ""
+echo "Installing on server..."
+ssh ${SERVER_USER}@${SERVER_IP} << ENDSSH
+set -e
+
+echo "=== Server-side installation started ==="
+
+# Stop service if running
+if systemctl is-active --quiet vdspanel; then
+    echo "Stopping existing vdspanel service..."
+    systemctl stop vdspanel
+fi
+
+# Create directory
+echo "Creating application directory..."
+mkdir -p ${SERVER_PATH}
+cd ${SERVER_PATH}
+
+# Extract files
+echo "Extracting files..."
+tar -xzf /tmp/vdspanel-deploy.tar.gz
+rm /tmp/vdspanel-deploy.tar.gz
+
+# Create necessary directories
+mkdir -p instance uploads
+
+# Install system dependencies
+echo ""
+echo "Installing system dependencies..."
+apt-get update
+apt-get install -y python3 python3-pip python3-venv nginx certbot python3-certbot-nginx supervisor
+
+# Create virtual environment
+echo ""
+echo "Setting up Python virtual environment..."
+python3 -m venv venv
+source venv/bin/activate
+
+# Install Python dependencies
+echo "Installing Python packages..."
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Update run.py port BEFORE creating user
+echo ""
+echo "Configuring port ${APP_PORT}..."
+sed -i "s/port=5001/port=${APP_PORT}/g" ${SERVER_PATH}/run.py
+
+# Create admin user
+echo ""
+echo "Creating admin user..."
+FLASK_APP=run.py python -c "
+from app import create_app, db
+from app.models import User
+app = create_app()
+with app.app_context():
+    db.create_all()
+    if not User.query.filter_by(username='${ADMIN_USER}').first():
+        user = User(username='${ADMIN_USER}')
+        user.set_password('${ADMIN_PASS}')
+        db.session.add(user)
+        db.session.commit()
+        print('Admin user created successfully')
+    else:
+        print('Admin user already exists')
+" || echo "Note: User creation had issues, will retry after service start"
+
+# Create systemd service
+echo ""
+echo "Creating systemd service..."
+cat > /etc/systemd/system/vdspanel.service << EOFSERVICE
+[Unit]
+Description=VDS Panel - Web Hosting Control Panel
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=${SERVER_PATH}
+Environment="PATH=${SERVER_PATH}/venv/bin"
+ExecStart=${SERVER_PATH}/venv/bin/python ${SERVER_PATH}/run.py
+Restart=always
+RestartSec=10
+StandardOutput=append:${SERVER_PATH}/vdspanel.out.log
+StandardError=append:${SERVER_PATH}/vdspanel.err.log
+
+[Install]
+WantedBy=multi-user.target
+EOFSERVICE
+
+# Configure firewall
+echo ""
+echo "Configuring firewall..."
+if command -v ufw &> /dev/null; then
+    ufw allow ${APP_PORT}/tcp || true
+    ufw allow 80/tcp || true
+    ufw allow 443/tcp || true
+fi
+
+# Reload systemd and start service
+echo ""
+echo "Starting VDS Panel service..."
+systemctl daemon-reload
+systemctl enable vdspanel
+systemctl start vdspanel
+
+# Wait for service to start
+sleep 3
+
+# Check service status
+echo ""
+echo "Service status:"
+systemctl status vdspanel --no-pager || true
+
+# Show listening ports
+echo ""
+echo "Listening ports:"
+ss -tuln | grep ":${APP_PORT}" || echo "Warning: Port ${APP_PORT} not found in listening ports"
+
+echo ""
+echo "=== Installation Complete ==="
+echo ""
+echo "VDS Panel is now running at:"
+echo "  http://${SERVER_IP}:${APP_PORT}"
+echo ""
+echo "Login credentials:"
+echo "  Username: ${ADMIN_USER}"
+echo "  Password: ${ADMIN_PASS}"
+echo ""
+echo "Important: Change the admin password after first login!"
+echo ""
+echo "Service management commands:"
+echo "  sudo systemctl status vdspanel"
+echo "  sudo systemctl restart vdspanel"
+echo "  sudo systemctl stop vdspanel"
+echo "  sudo journalctl -u vdspanel -f  # View logs"
+echo ""
+echo "Files are located at: ${SERVER_PATH}"
+
+ENDSSH
+
+echo ""
+echo "=== Deployment complete! ==="
+echo ""
+echo "Access your panel at: http://${SERVER_IP}:${APP_PORT}"
+echo "Username: ${ADMIN_USER}"
+echo "Password: ${ADMIN_PASS}"
+echo ""
+
+# Cleanup local temp file
+rm -f /tmp/vdspanel-deploy.tar.gz
+
+echo "Remember to:"
+echo "1. Change the admin password"
+echo "2. Configure your domain DNS if needed"
+echo "3. Set up SSL certificates for your domains"
