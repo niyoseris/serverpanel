@@ -3,7 +3,7 @@
 # Quick Update - Updated files only
 
 SERVER_USER="root"
-SERVER_IP="45.132.181.253"
+SERVER_IP="YOUR_SERVER_IP"
 SERVER_PATH="/opt/vdspanel"
 
 echo "=== Quick Update ==="

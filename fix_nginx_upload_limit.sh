@@ -4,7 +4,7 @@
 # This script increases the upload size limit to allow large project uploads
 
 SERVER_USER="root"
-SERVER_IP="45.132.181.253"
+SERVER_IP="YOUR_SERVER_IP"
 
 echo "=== Fixing Nginx Upload Limit ==="
 echo ""

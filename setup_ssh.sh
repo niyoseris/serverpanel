@@ -4,7 +4,7 @@
 # This script will set up passwordless SSH authentication
 
 SERVER_USER="root"
-SERVER_IP="45.132.181.253"
+SERVER_IP="YOUR_SERVER_IP"
 
 echo "=== SSH Key Setup ==="
 echo ""

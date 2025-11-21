@@ -3,7 +3,7 @@
 # VDS Panel - Nginx Setup Script
 # This script sets up Nginx for reverse proxy
 
-SERVER_IP="45.132.181.253"
+SERVER_IP="YOUR_SERVER_IP"
 SERVER_USER="root"
 SERVER_PATH="/opt/vdspanel"
 

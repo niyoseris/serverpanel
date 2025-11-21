@@ -181,7 +181,7 @@
                     <div class="bg-gray-800/30 rounded-lg p-4 mb-4">
                         <h4 class="text-sm font-medium text-gray-300 mb-2">📌 Steps:</h4>
                         <ol class="text-xs text-gray-400 space-y-1 list-decimal list-inside">
-                            <li>Point your domain's A records to: <code class="bg-gray-700/50 px-1.5 py-0.5 rounded">45.132.181.253</code></li>
+                            <li>Point your domain's A records to: <code class="bg-gray-700/50 px-1.5 py-0.5 rounded">{{ request.host.split(':')[0] }}</code></li>
                             <li>Wait for DNS propagation (1-24 hours)</li>
                             <li>Click "Configure Nginx" below to create reverse proxy</li>
                             <li>Your app will be accessible via <code class="bg-gray-700/50 px-1.5 py-0.5 rounded">http://{{ project.domain }}</code></li>

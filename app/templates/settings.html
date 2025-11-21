@@ -51,7 +51,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-400 mb-1">Server IP</label>
-                    <p class="text-white font-semibold">45.132.181.253</p>
+                    <p class="text-white font-semibold">{{ request.host.split(':')[0] }}</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-400 mb-1">Panel Port</label>

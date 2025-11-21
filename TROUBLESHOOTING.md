@@ -227,7 +227,7 @@ python run.py
 ### Production
 ```bash
 # SSH bağlan
-ssh root@45.132.181.253
+ssh root@YOUR_SERVER_IP
 
 # Panel'i yeniden başlat
 systemctl restart vdspanel

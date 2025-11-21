@@ -3,7 +3,7 @@
 # Quick Update Script - Updates only changed files on server
 
 SERVER_USER="root"
-SERVER_IP="45.132.181.253"
+SERVER_IP="YOUR_SERVER_IP"
 SERVER_PATH="/opt/vdspanel"
 
 echo "=== Quick Update - VDS Panel ==="
@@ -49,9 +49,9 @@ echo "  - Proper domain routing from port 80"
 echo ""
 echo "Usage:"
 echo "  1. Add domain to project (Settings tab)"
-echo "  2. Point A records to 45.132.181.253"
+echo "  2. Point A records to YOUR_SERVER_IP"
 echo "  3. Click 'Configure Nginx' button"
 echo "  4. Access via http://yourdomain.com"
 echo ""
-echo "Access: http://45.132.181.253:5012"
-echo "Settings: http://45.132.181.253:5012/settings"
+echo "Access: http://YOUR_SERVER_IP:5012"
+echo "Settings: http://YOUR_SERVER_IP:5012/settings"

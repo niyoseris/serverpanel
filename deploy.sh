@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # VDS Panel Deployment Script
-# Server: root@45.132.181.253
+# Server: root@YOUR_SERVER_IP
 # Port: 5012
 
 set -e
 
 SERVER_USER="root"
-SERVER_IP="45.132.181.253"
+SERVER_IP="YOUR_SERVER_IP"
 SERVER_PATH="/opt/vdspanel"
 APP_PORT="5012"
 

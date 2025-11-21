@@ -104,8 +104,8 @@ VDS Panel artık **tamamen otomatik ve adaptif** bir VDS/VPS yönetim paneli! Ku
 
 ### Production Server: ✅ AKTIF
 ```
-URL: http://45.132.181.253:5012
-SSH: root@45.132.181.253 (passwordless)
+URL: http://YOUR_SERVER_IP:5012
+SSH: root@YOUR_SERVER_IP (passwordless)
 Service: vdspanel.service (running)
 ```
 
@@ -178,7 +178,7 @@ Service: vdspanel.service (running)
 ```
 1. SSH key kur: bash setup_ssh.sh
 2. Deploy et: bash deploy_to_server.sh
-3. Panel'e gir: http://45.132.181.253:5012
+3. Panel'e gir: http://YOUR_SERVER_IP:5012
 4. Proje yükle: Upload Project butonu
 ✓ Panel otomatik her şeyi kurar
 ```
@@ -345,8 +345,8 @@ Service: vdspanel.service (running)
 
 VDS Panel artık **production-ready** ve **tamamen fonksiyonel**:
 
-✅ Sunucuda çalışıyor: `http://45.132.181.253:5012`
-✅ SSH passwordless: `ssh root@45.132.181.253`
+✅ Sunucuda çalışıyor: `http://YOUR_SERVER_IP:5012`
+✅ SSH passwordless: `ssh root@YOUR_SERVER_IP`
 ✅ Otomatik self-healing aktif
 ✅ SSL management hazır
 ✅ 1GB'a kadar upload
@@ -362,13 +362,13 @@ VDS Panel artık **production-ready** ve **tamamen fonksiyonel**:
 
 ```bash
 # Panel'i yeniden başlat
-ssh root@45.132.181.253 "systemctl restart vdspanel"
+ssh root@YOUR_SERVER_IP "systemctl restart vdspanel"
 
 # Log'ları izle
-ssh root@45.132.181.253 "journalctl -u vdspanel -f"
+ssh root@YOUR_SERVER_IP "journalctl -u vdspanel -f"
 
 # Status kontrol
-ssh root@45.132.181.253 "systemctl status vdspanel"
+ssh root@YOUR_SERVER_IP "systemctl status vdspanel"
 
 # Update deploy et
 bash deploy_adaptive_update.sh

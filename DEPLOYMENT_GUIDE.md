@@ -1,6 +1,6 @@
 # VDS Deployment Guide
 
-Bu rehber, VDS Panel'i `root@45.132.181.253` sunucusuna yüklemeniz için hazırlanmıştır.
+Bu rehber, VDS Panel'i sunucunuza yüklemeniz için hazırlanmıştır.
 
 ## Hızlı Başlangıç
 
@@ -72,7 +72,7 @@ Bu script otomatik olarak:
 
 Panel şu adreste çalışacak:
 ```
-http://45.132.181.253:5012
+http://YOUR_SERVER_IP:5012
 ```
 
 **Varsayılan Giriş Bilgileri:**
@@ -87,7 +87,7 @@ Sunucuda aşağıdaki komutları kullanabilirsiniz:
 
 ```bash
 # SSH ile sunucuya bağlan (artık şifre istenmez)
-ssh root@45.132.181.253
+ssh root@YOUR_SERVER_IP
 
 # Servis durumunu kontrol et
 systemctl status vdspanel
@@ -133,7 +133,7 @@ Script otomatik olarak şu portları açar:
 SSH key kurulduktan sonra, ek güvenlik için password authentication'ı kapatabilirsiniz:
 
 ```bash
-ssh root@45.132.181.253
+ssh root@YOUR_SERVER_IP
 
 # SSH config'i düzenle
 nano /etc/ssh/sshd_config
@@ -173,7 +173,7 @@ Panel'e domain üzerinden erişmek için:
 
 1. DNS ayarlarınızda A kaydı ekleyin:
    ```
-   panel.yourdomain.com  →  45.132.181.253
+   panel.yourdomain.com  →  YOUR_SERVER_IP
    ```
 
 2. Panel'de yeni proje oluştururken:
@@ -245,14 +245,14 @@ Sorun yaşarsanız:
 
 ```bash
 # SSH bağlantısı (şifresiz)
-ssh root@45.132.181.253
+ssh root@YOUR_SERVER_IP
 
 # Panel log'larını izle
-ssh root@45.132.181.253 "journalctl -u vdspanel -f"
+ssh root@YOUR_SERVER_IP "journalctl -u vdspanel -f"
 
 # Panel'i yeniden başlat
-ssh root@45.132.181.253 "systemctl restart vdspanel"
+ssh root@YOUR_SERVER_IP "systemctl restart vdspanel"
 
 # Servis durumu
-ssh root@45.132.181.253 "systemctl status vdspanel"
+ssh root@YOUR_SERVER_IP "systemctl status vdspanel"
 ```
