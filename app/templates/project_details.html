@@ -29,6 +29,13 @@
             </div>
         </div>
         <div class="mt-4 md:mt-0 flex space-x-3">
+            <a href="{{ url_for('main.project_files', id=project.id) }}"
+                class="inline-flex items-center px-4 py-2 border border-gray-700 rounded-lg shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                </svg>
+                Files
+            </a>
             <a href="{{ url_for('main.project_versions', id=project.id) }}"
                 class="inline-flex items-center px-4 py-2 border border-gray-700 rounded-lg shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -286,6 +293,218 @@
                 </div>
             </form>
             {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Sub-Routes Management -->
+        {% if project.domain %}
+        <div class="glass-card rounded-2xl p-6 border border-purple-900/30 bg-purple-900/10">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-lg font-medium text-purple-400 mb-2 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        Sub-Routes (Nested Projects)
+                    </h3>
+                    <p class="text-sm text-gray-400">
+                        Mount other projects on specific paths. Example: <code class="bg-gray-800/50 px-1.5 py-0.5 rounded">{{ project.domain }}/api</code> → another project
+                    </p>
+                </div>
+            </div>
+
+            <!-- Existing Sub-Routes -->
+            {% if sub_routes %}
+            <div class="mb-6">
+                <h4 class="text-sm font-medium text-gray-300 mb-3">Active Sub-Routes</h4>
+                <div class="space-y-2">
+                    {% for sr in sub_routes %}
+                    <div class="flex items-center justify-between bg-gray-800/50 rounded-lg px-4 py-3">
+                        <div class="flex items-center space-x-4">
+                            <code class="text-purple-300 font-mono text-sm">{{ sr.route_path }}</code>
+                            <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                            </svg>
+                            <span class="text-gray-300">{{ sr.mounted_project.name }}</span>
+                            <span class="text-xs text-gray-500">(Port {{ sr.mounted_project.port }})</span>
+                            {% if sr.strip_prefix %}
+                            <span class="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded">prefix stripped</span>
+                            {% endif %}
+                        </div>
+                        <form action="{{ url_for('main.delete_sub_route', id=project.id, sub_route_id=sr.id) }}" method="POST"
+                            onsubmit="return confirm('Remove sub-route {{ sr.route_path }}?');">
+                            <button type="submit" class="text-red-400 hover:text-red-300 text-sm">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Add New Sub-Route -->
+            <div x-data="{ 
+                showForm: false, 
+                projectMode: 'existing',
+                newPort: '',
+                portError: '',
+                usedPorts: [{% for p in all_projects %}{{ p.port }}{% if not loop.last %},{% endif %}{% endfor %}, {{ project.port }}],
+                checkPort() {
+                    const port = parseInt(this.newPort);
+                    if (isNaN(port)) {
+                        this.portError = '';
+                        return;
+                    }
+                    if (port < 1024 || port > 65535) {
+                        this.portError = 'Port must be between 1024 and 65535';
+                        return;
+                    }
+                    if (this.usedPorts.includes(port)) {
+                        this.portError = 'This port is already in use by another project';
+                        return;
+                    }
+                    this.portError = '';
+                }
+            }">
+                <button @click="showForm = !showForm" 
+                    class="text-purple-400 hover:text-purple-300 text-sm flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Sub-Route
+                </button>
+                
+                <div x-show="showForm" class="mt-4 bg-gray-800/30 rounded-lg p-4 space-y-4" style="display: none;">
+                    <!-- Project Selection Mode -->
+                    <div class="flex space-x-4 mb-4">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="project_mode" value="existing" x-model="projectMode"
+                                class="h-4 w-4 border-gray-600 bg-gray-700 text-purple-600 focus:ring-purple-500">
+                            <span class="ml-2 text-sm text-gray-300">Select Existing Project</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="project_mode" value="new" x-model="projectMode"
+                                class="h-4 w-4 border-gray-600 bg-gray-700 text-purple-600 focus:ring-purple-500">
+                            <span class="ml-2 text-sm text-gray-300">Create New Project</span>
+                        </label>
+                    </div>
+
+                    <!-- Existing Project Form -->
+                    <form x-show="projectMode === 'existing'" action="{{ url_for('main.add_sub_route', id=project.id) }}" method="POST" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="route_path" class="block text-sm font-medium text-gray-300 mb-1">Route Path</label>
+                                <input type="text" name="route_path" id="route_path" required
+                                    placeholder="/api, /admin, /blog"
+                                    class="block w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2 px-3">
+                                <p class="mt-1 text-xs text-gray-400">Path where the mounted project will be accessible</p>
+                            </div>
+                            <div>
+                                <label for="mounted_project_id" class="block text-sm font-medium text-gray-300 mb-1">Mount Project</label>
+                                <select name="mounted_project_id" id="mounted_project_id" required
+                                    class="block w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2 px-3">
+                                    <option value="">Select a project...</option>
+                                    {% for p in all_projects %}
+                                    <option value="{{ p.id }}">{{ p.name }} (Port {{ p.port }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" name="strip_prefix" id="strip_prefix" checked
+                                class="h-4 w-4 rounded border-gray-600 bg-gray-700 text-purple-600 focus:ring-purple-500">
+                            <label for="strip_prefix" class="ml-2 text-sm text-gray-300">
+                                Strip prefix (remove path prefix before forwarding to mounted project)
+                            </label>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button type="submit"
+                                class="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm">
+                                Add Sub-Route
+                            </button>
+                            <button type="button" @click="showForm = false"
+                                class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- New Project Form -->
+                    <form x-show="projectMode === 'new'" action="{{ url_for('main.add_sub_route_with_new_project', id=project.id) }}" method="POST" class="space-y-4"
+                        @submit="if(portError) { $event.preventDefault(); alert(portError); }">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="new_route_path" class="block text-sm font-medium text-gray-300 mb-1">Route Path</label>
+                                <input type="text" name="route_path" id="new_route_path" required
+                                    placeholder="/api, /admin, /blog"
+                                    class="block w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2 px-3">
+                                <p class="mt-1 text-xs text-gray-400">Path where the new project will be accessible</p>
+                            </div>
+                            <div>
+                                <label for="new_project_name" class="block text-sm font-medium text-gray-300 mb-1">Project Name</label>
+                                <input type="text" name="new_project_name" id="new_project_name" required
+                                    placeholder="my-api-project"
+                                    class="block w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2 px-3">
+                                <p class="mt-1 text-xs text-gray-400">Directory will be created automatically</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="new_project_type" class="block text-sm font-medium text-gray-300 mb-1">Project Type</label>
+                                <select name="new_project_type" id="new_project_type" required
+                                    class="block w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2 px-3">
+                                    <option value="python">Python</option>
+                                    <option value="nodejs">Node.js</option>
+                                    <option value="static">Static</option>
+                                    <option value="php">PHP</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="new_project_port" class="block text-sm font-medium text-gray-300 mb-1">Port</label>
+                                <input type="number" name="new_project_port" id="new_project_port" required
+                                    placeholder="3000" min="1024" max="65535"
+                                    x-model="newPort" @input="checkPort()"
+                                    class="block w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2 px-3"
+                                    :class="{ 'border-red-500 ring-1 ring-red-500': portError }">
+                                <p class="mt-1 text-xs" :class="portError ? 'text-red-400' : 'text-gray-400'" x-text="portError || 'Port number (1024-65535)'"></p>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="new_project_entry" class="block text-sm font-medium text-gray-300 mb-1">Entry Point (optional)</label>
+                            <input type="text" name="new_project_entry" id="new_project_entry"
+                                placeholder="app.py, server.js, index.php"
+                                class="block w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2 px-3">
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" name="new_strip_prefix" id="new_strip_prefix" checked
+                                class="h-4 w-4 rounded border-gray-600 bg-gray-700 text-purple-600 focus:ring-purple-500">
+                            <label for="new_strip_prefix" class="ml-2 text-sm text-gray-300">
+                                Strip prefix (remove path prefix before forwarding to mounted project)
+                            </label>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button type="submit" :disabled="!!portError"
+                                class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                Create Project & Add Sub-Route
+                            </button>
+                            <button type="button" @click="showForm = false"
+                                class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="mt-4 p-3 bg-gray-800/30 rounded-lg">
+                <p class="text-xs text-gray-400">
+                    <strong>Note:</strong> After adding/removing sub-routes, click "Configure Nginx" above to apply changes.
+                </p>
+            </div>
         </div>
         {% endif %}
 

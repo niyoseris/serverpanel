@@ -1,0 +1,555 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto" x-data="fileManager()">
+    <!-- Header -->
+    <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
+        <div>
+            <div class="flex items-center space-x-3">
+                <a href="{{ url_for('main.project_details', id=project.id) }}" class="text-gray-400 hover:text-white transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                    </svg>
+                </a>
+                <h1 class="text-3xl font-bold text-white tracking-tight">{{ project.name }} - Files</h1>
+            </div>
+            <p class="mt-2 text-sm text-gray-400 font-mono">{{ project.path }}</p>
+        </div>
+        <div class="mt-4 md:mt-0 flex space-x-3">
+            <button @click="showCreateModal('file')" class="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                New File
+            </button>
+            <button @click="showCreateModal('folder')" class="inline-flex items-center px-4 py-2 border border-gray-700 rounded-lg shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                </svg>
+                New Folder
+            </button>
+        </div>
+    </div>
+
+    <!-- Breadcrumb -->
+    <div class="glass-card rounded-lg p-3 mb-4 flex items-center space-x-2 text-sm">
+        <button @click="navigateTo('')" class="text-indigo-400 hover:text-indigo-300 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+            </svg>
+        </button>
+        <template x-for="(part, index) in breadcrumbs" :key="index">
+            <div class="flex items-center">
+                <span class="text-gray-500 mx-1">/</span>
+                <button @click="navigateToBreadcrumb(index)" 
+                        :class="index === breadcrumbs.length - 1 ? 'text-white' : 'text-indigo-400 hover:text-indigo-300'"
+                        class="transition-colors" x-text="part"></button>
+            </div>
+        </template>
+    </div>
+
+    <!-- Main Content -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- File List -->
+        <div class="lg:col-span-1 glass-card rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-gray-700 bg-gray-800/50">
+                <h3 class="text-sm font-medium text-white">Files & Folders</h3>
+            </div>
+            <div class="overflow-auto max-h-[600px]">
+                <!-- Loading -->
+                <div x-show="loading" class="p-4 text-center text-gray-400">
+                    <svg class="animate-spin h-6 w-6 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Loading...
+                </div>
+
+                <!-- File List -->
+                <div x-show="!loading" class="divide-y divide-gray-700/50">
+                    <!-- Parent Directory -->
+                    <template x-if="currentPath">
+                        <button @click="goUp()" class="w-full px-4 py-3 flex items-center space-x-3 hover:bg-gray-700/30 transition-colors text-left">
+                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"/>
+                            </svg>
+                            <span class="text-gray-400">..</span>
+                        </button>
+                    </template>
+
+                    <!-- Items -->
+                    <template x-for="item in files" :key="item.path">
+                        <div class="group relative">
+                            <button @click="item.is_dir ? navigateTo(item.path) : openFile(item)"
+                                    :class="selectedFile && selectedFile.path === item.path ? 'bg-indigo-600/20 border-l-2 border-indigo-500' : 'hover:bg-gray-700/30'"
+                                    class="w-full px-4 py-3 flex items-center space-x-3 transition-colors text-left">
+                                <!-- Icon -->
+                                <template x-if="item.is_dir">
+                                    <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
+                                    </svg>
+                                </template>
+                                <template x-if="!item.is_dir">
+                                    <svg class="w-5 h-5" :class="getFileColor(item.extension)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                    </svg>
+                                </template>
+                                
+                                <!-- Name & Info -->
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-white truncate" x-text="item.name"></p>
+                                    <p class="text-xs text-gray-500" x-text="item.is_dir ? 'Folder' : formatSize(item.size)"></p>
+                                </div>
+                            </button>
+
+                            <!-- Context Menu Button -->
+                            <div class="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button @click.stop="showContextMenu($event, item)" class="p-1.5 rounded hover:bg-gray-600 text-gray-400 hover:text-white">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Empty State -->
+                    <div x-show="files.length === 0 && !loading" class="p-8 text-center text-gray-400">
+                        <svg class="w-12 h-12 mx-auto mb-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                        </svg>
+                        <p>Empty folder</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Editor -->
+        <div class="lg:col-span-2 glass-card rounded-2xl overflow-hidden flex flex-col" style="height: 650px;">
+            <!-- Editor Header -->
+            <div class="px-4 py-3 border-b border-gray-700 bg-gray-800/50 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <template x-if="selectedFile">
+                        <span class="text-sm text-white font-mono" x-text="selectedFile.name"></span>
+                    </template>
+                    <template x-if="!selectedFile">
+                        <span class="text-sm text-gray-400">Select a file to edit</span>
+                    </template>
+                    <span x-show="hasChanges" class="text-xs text-yellow-400">(unsaved)</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button x-show="selectedFile" @click="saveFile()" :disabled="!hasChanges || saving"
+                            class="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg transition-colors"
+                            :class="hasChanges ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-700 text-gray-400 cursor-not-allowed'">
+                        <svg x-show="!saving" class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+                        </svg>
+                        <svg x-show="saving" class="animate-spin w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        Save
+                    </button>
+                </div>
+            </div>
+
+            <!-- Editor Content -->
+            <div class="flex-1 overflow-hidden">
+                <template x-if="selectedFile">
+                    <textarea x-model="fileContent" @input="hasChanges = true"
+                              class="w-full h-full bg-gray-900 text-green-400 font-mono text-sm p-4 resize-none focus:outline-none"
+                              spellcheck="false"></textarea>
+                </template>
+                <template x-if="!selectedFile">
+                    <div class="h-full flex items-center justify-center text-gray-500">
+                        <div class="text-center">
+                            <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                            <p>Select a file from the list to view or edit</p>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div x-show="contextMenu.show" @click.away="contextMenu.show = false"
+         :style="`top: ${contextMenu.y}px; left: ${contextMenu.x}px`"
+         class="fixed z-50 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[160px]"
+         x-cloak>
+        <button @click="renameItem()" class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            Rename
+        </button>
+        <button @click="deleteItem()" class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            Delete
+        </button>
+    </div>
+
+    <!-- Create Modal -->
+    <div x-show="createModal.show" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/60" @click="createModal.show = false"></div>
+            <div class="relative glass-card rounded-2xl p-6 w-full max-w-md">
+                <h3 class="text-lg font-medium text-white mb-4" x-text="createModal.type === 'file' ? 'Create New File' : 'Create New Folder'"></h3>
+                <form @submit.prevent="createItem()">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Name</label>
+                        <input type="text" x-model="createModal.name" required
+                               class="w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-2 px-3"
+                               :placeholder="createModal.type === 'file' ? 'filename.py' : 'folder_name'">
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" @click="createModal.show = false"
+                                class="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                                class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
+                            Create
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Modal -->
+    <div x-show="renameModal.show" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/60" @click="renameModal.show = false"></div>
+            <div class="relative glass-card rounded-2xl p-6 w-full max-w-md">
+                <h3 class="text-lg font-medium text-white mb-4">Rename</h3>
+                <form @submit.prevent="submitRename()">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">New Name</label>
+                        <input type="text" x-model="renameModal.newName" required
+                               class="w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-2 px-3">
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" @click="renameModal.show = false"
+                                class="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                                class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
+                            Rename
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div x-show="toast.show" x-transition
+         :class="toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'"
+         class="fixed bottom-4 right-4 px-4 py-3 rounded-lg text-white shadow-lg z-50" x-cloak>
+        <span x-text="toast.message"></span>
+    </div>
+</div>
+
+<script>
+function fileManager() {
+    return {
+        projectId: {{ project.id }},
+        files: [],
+        currentPath: '',
+        selectedFile: null,
+        fileContent: '',
+        originalContent: '',
+        hasChanges: false,
+        loading: true,
+        saving: false,
+        breadcrumbs: [],
+        
+        // Context menu
+        contextMenu: {
+            show: false,
+            x: 0,
+            y: 0,
+            item: null
+        },
+        
+        // Modals
+        createModal: {
+            show: false,
+            type: 'file',
+            name: ''
+        },
+        renameModal: {
+            show: false,
+            item: null,
+            newName: ''
+        },
+        
+        // Toast
+        toast: {
+            show: false,
+            message: '',
+            type: 'success'
+        },
+        
+        init() {
+            this.loadFiles();
+        },
+        
+        async loadFiles(path = '') {
+            this.loading = true;
+            try {
+                const response = await fetch(`/api/projects/${this.projectId}/files?path=${encodeURIComponent(path)}`, { credentials: 'same-origin' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.files = data.items;
+                    this.currentPath = data.path;
+                    this.updateBreadcrumbs();
+                } else {
+                    this.showToast(data.error, 'error');
+                }
+            } catch (error) {
+                this.showToast('Failed to load files', 'error');
+            }
+            this.loading = false;
+        },
+        
+        updateBreadcrumbs() {
+            if (!this.currentPath) {
+                this.breadcrumbs = [];
+            } else {
+                this.breadcrumbs = this.currentPath.split('/').filter(p => p);
+            }
+        },
+        
+        navigateTo(path) {
+            if (this.hasChanges && !confirm('You have unsaved changes. Continue?')) {
+                return;
+            }
+            this.selectedFile = null;
+            this.fileContent = '';
+            this.hasChanges = false;
+            this.loadFiles(path);
+        },
+        
+        navigateToBreadcrumb(index) {
+            const path = this.breadcrumbs.slice(0, index + 1).join('/');
+            this.navigateTo(path);
+        },
+        
+        goUp() {
+            const parts = this.currentPath.split('/').filter(p => p);
+            parts.pop();
+            this.navigateTo(parts.join('/'));
+        },
+        
+        async openFile(item) {
+            if (this.hasChanges && !confirm('You have unsaved changes. Continue?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/projects/${this.projectId}/files/content?path=${encodeURIComponent(item.path)}`, { credentials: 'same-origin' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.selectedFile = item;
+                    this.fileContent = data.content;
+                    this.originalContent = data.content;
+                    this.hasChanges = false;
+                } else {
+                    this.showToast(data.error, 'error');
+                }
+            } catch (error) {
+                this.showToast('Failed to load file', 'error');
+            }
+        },
+        
+        async saveFile() {
+            if (!this.selectedFile || this.saving) return;
+            
+            this.saving = true;
+            try {
+                const response = await fetch(`/api/projects/${this.projectId}/files/save`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        path: this.selectedFile.path,
+                        content: this.fileContent
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.originalContent = this.fileContent;
+                    this.hasChanges = false;
+                    this.showToast('File saved successfully', 'success');
+                } else {
+                    this.showToast(data.error, 'error');
+                }
+            } catch (error) {
+                this.showToast('Failed to save file', 'error');
+            }
+            this.saving = false;
+        },
+        
+        showCreateModal(type) {
+            this.createModal = {
+                show: true,
+                type: type,
+                name: ''
+            };
+        },
+        
+        async createItem() {
+            try {
+                const response = await fetch(`/api/projects/${this.projectId}/files/create`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: this.createModal.name,
+                        path: this.currentPath,
+                        is_dir: this.createModal.type === 'folder',
+                        content: ''
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.createModal.show = false;
+                    this.loadFiles(this.currentPath);
+                    this.showToast(data.message, 'success');
+                } else {
+                    this.showToast(data.error, 'error');
+                }
+            } catch (error) {
+                this.showToast('Failed to create item', 'error');
+            }
+        },
+        
+        showContextMenu(event, item) {
+            event.preventDefault();
+            this.contextMenu = {
+                show: true,
+                x: event.clientX,
+                y: event.clientY,
+                item: item
+            };
+        },
+        
+        renameItem() {
+            this.contextMenu.show = false;
+            this.renameModal = {
+                show: true,
+                item: this.contextMenu.item,
+                newName: this.contextMenu.item.name
+            };
+        },
+        
+        async submitRename() {
+            try {
+                const response = await fetch(`/api/projects/${this.projectId}/files/rename`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        old_path: this.renameModal.item.path,
+                        new_name: this.renameModal.newName
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.renameModal.show = false;
+                    this.loadFiles(this.currentPath);
+                    this.showToast(data.message, 'success');
+                } else {
+                    this.showToast(data.error, 'error');
+                }
+            } catch (error) {
+                this.showToast('Failed to rename', 'error');
+            }
+        },
+        
+        async deleteItem() {
+            const item = this.contextMenu.item;
+            this.contextMenu.show = false;
+            
+            if (!confirm(`Are you sure you want to delete "${item.name}"?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/projects/${this.projectId}/files/delete`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: item.path })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (this.selectedFile && this.selectedFile.path === item.path) {
+                        this.selectedFile = null;
+                        this.fileContent = '';
+                        this.hasChanges = false;
+                    }
+                    this.loadFiles(this.currentPath);
+                    this.showToast(data.message, 'success');
+                } else {
+                    this.showToast(data.error, 'error');
+                }
+            } catch (error) {
+                this.showToast('Failed to delete', 'error');
+            }
+        },
+        
+        formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        },
+        
+        getFileColor(ext) {
+            const colors = {
+                '.py': 'text-blue-400',
+                '.js': 'text-yellow-400',
+                '.ts': 'text-blue-500',
+                '.html': 'text-orange-400',
+                '.css': 'text-pink-400',
+                '.json': 'text-green-400',
+                '.md': 'text-gray-400',
+                '.txt': 'text-gray-400',
+                '.yml': 'text-purple-400',
+                '.yaml': 'text-purple-400',
+                '.env': 'text-green-500',
+                '.sh': 'text-green-300'
+            };
+            return colors[ext] || 'text-gray-400';
+        },
+        
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => { this.toast.show = false; }, 3000);
+        }
+    };
+}
+</script>
+
+<style>
+[x-cloak] { display: none !important; }
+</style>
+
+<!-- Alpine.js -->
+<script src="//unpkg.com/alpinejs" defer></script>
+{% endblock %}

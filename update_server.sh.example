@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# Quick Update Script - Updates only changed files on server
+
+SERVER_USER="root"
+SERVER_IP="YOUR_SERVER_IP"
+SERVER_PATH="/opt/vdspanel"
+
+echo "=== Quick Update - VDS Panel ==="
+echo ""
+
+# Upload changed files
+echo "Uploading updated files..."
+
+scp app/models.py ${SERVER_USER}@${SERVER_IP}:${SERVER_PATH}/app/
+scp app/routes.py ${SERVER_USER}@${SERVER_IP}:${SERVER_PATH}/app/
+scp app/templates/project_details.html ${SERVER_USER}@${SERVER_IP}:${SERVER_PATH}/app/templates/
+
+echo "✓ Files uploaded"
+
+# Run database migration for new SubRoute table
+echo ""
+echo "Running database migration..."
+ssh ${SERVER_USER}@${SERVER_IP} << 'ENDSSH'
+cd /opt/vdspanel
+source venv/bin/activate
+python -c "
+from app import create_app, db
+from app.models import SubRoute
+app = create_app()
+with app.app_context():
+    db.create_all()
+    print('✓ Database tables updated (SubRoute table created)')
+"
+ENDSSH
+
+# Restart service
+echo ""
+echo "Restarting vdspanel service..."
+ssh ${SERVER_USER}@${SERVER_IP} "systemctl restart vdspanel && sleep 2 && systemctl status vdspanel --no-pager"
+
+echo ""
+echo "=== Update Complete! ==="
+echo ""
+echo "New Feature: Sub-Routes (Nested Projects)"
+echo "  - Mount other projects on specific paths"
+echo "  - Example: example.com/api -> another project"
+echo "  - Configure in Project Settings > Sub-Routes section"
+echo "  - Strip prefix option for URL rewriting"
+echo ""
+echo "Usage:"
+echo "  1. Go to a project with domain configured"
+echo "  2. Settings tab > Sub-Routes section"
+echo "  3. Add sub-route with path (e.g., /api) and target project"
+echo "  4. Click 'Configure Nginx' to apply changes"
+echo ""
+echo "Access: http://YOUR_SERVER_IP:5012"

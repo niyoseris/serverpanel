@@ -54,7 +54,13 @@ Thumbs.db
 uploads/
 
 # Deployment scripts (with sensitive data)
+deploy.sh
 deploy_to_server.sh
+update_server.sh
+quick_update.sh
+deploy_adaptive_update.sh
+deploy_autofix.sh
+deploy_debug_update.sh
 
 # Temporary files
 *.tmp

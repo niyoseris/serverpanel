@@ -57,3 +57,23 @@ class ProjectVersion(db.Model):
     
     def __repr__(self):
         return f'<ProjectVersion {self.project_id} v{self.version_number}>'
+
+class SubRoute(db.Model):
+    """
+    Sub-route mounting: allows mounting another project on a specific path of a host project.
+    Example: Host project has domain example.com, mounted project runs on /api path
+    -> example.com/api/* proxies to mounted project's port
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    host_project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    mounted_project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    route_path = db.Column(db.String(256), nullable=False)  # e.g., /api, /admin, /blog
+    strip_prefix = db.Column(db.Boolean, default=True)  # Strip the prefix before forwarding
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    host_project = db.relationship('Project', foreign_keys=[host_project_id], backref='sub_routes')
+    mounted_project = db.relationship('Project', foreign_keys=[mounted_project_id], backref='mounted_on')
+    
+    def __repr__(self):
+        return f'<SubRoute {self.route_path} -> Project#{self.mounted_project_id}>'
