@@ -1221,7 +1221,7 @@ def change_password():
     
     user = User.query.filter_by(username=current_user.username).first()
     
-    if not check_password_hash(user.password, current_password):
+    if not check_password_hash(user.password_hash, current_password):
         flash('Current password is incorrect', 'error')
         return redirect(url_for('main.settings'))
     
@@ -1233,7 +1233,7 @@ def change_password():
         flash('Password must be at least 6 characters long', 'error')
         return redirect(url_for('main.settings'))
     
-    user.password = generate_password_hash(new_password)
+    user.password_hash = generate_password_hash(new_password)
     db.session.commit()
     
     flash('Password changed successfully!', 'success')
