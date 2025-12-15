@@ -77,3 +77,61 @@ class SubRoute(db.Model):
     
     def __repr__(self):
         return f'<SubRoute {self.route_path} -> Project#{self.mounted_project_id}>'
+
+
+class FileManifest(db.Model):
+    """
+    Dosya manifest kaydı - her dosyanın hash'ini tutar (git benzeri)
+    Deployment sırasında sadece değişen dosyaları göndermek için kullanılır
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    file_path = db.Column(db.String(512), nullable=False)  # Relative path from project root
+    file_hash = db.Column(db.String(64), nullable=False)  # SHA256 hash
+    file_size = db.Column(db.Integer, default=0)
+    last_modified = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Unique constraint: one entry per file per project
+    __table_args__ = (db.UniqueConstraint('project_id', 'file_path', name='uix_project_file'),)
+    
+    project = db.relationship('Project', backref=db.backref('file_manifests', lazy='dynamic', cascade='all, delete-orphan'))
+    
+    def __repr__(self):
+        return f'<FileManifest {self.file_path}>'
+
+
+class AppState(db.Model):
+    """
+    Uygulama durumu - server restart sonrası hangi uygulamaların çalışması gerektiğini tutar
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False, unique=True)
+    should_run = db.Column(db.Boolean, default=False)  # Restart sonrası çalışmalı mı?
+    last_started_at = db.Column(db.DateTime)
+    last_stopped_at = db.Column(db.DateTime)
+    auto_restart = db.Column(db.Boolean, default=True)  # Crash durumunda otomatik yeniden başlat
+    
+    project = db.relationship('Project', backref=db.backref('app_state', uselist=False, cascade='all, delete-orphan'))
+    
+    def __repr__(self):
+        return f'<AppState {self.project_id} should_run={self.should_run}>'
+
+
+class DeploymentLog(db.Model):
+    """
+    Deployment geçmişi - kim, ne zaman, hangi dosyaları deploy etti
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    deployed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    files_changed = db.Column(db.Integer, default=0)
+    files_added = db.Column(db.Integer, default=0)
+    files_deleted = db.Column(db.Integer, default=0)
+    total_size = db.Column(db.Integer, default=0)  # bytes
+    description = db.Column(db.Text)
+    status = db.Column(db.String(20), default='success')  # success, failed, partial
+    
+    project = db.relationship('Project', backref=db.backref('deployment_logs', lazy='dynamic', cascade='all, delete-orphan'))
+    
+    def __repr__(self):
+        return f'<DeploymentLog {self.project_id} @ {self.deployed_at}>'

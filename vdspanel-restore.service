@@ -1,0 +1,14 @@
+[Unit]
+Description=VDS Panel - Restore Applications After Reboot
+After=network.target vdspanel.service
+Wants=vdspanel.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/vdspanel
+ExecStart=/opt/vdspanel/venv/bin/python /opt/vdspanel/restore_apps.py
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,8 +1,8 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, send_file, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, request, send_file, jsonify, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
 from app import db
-from app.models import User, Project, SubRoute
+from app.models import User, Project, SubRoute, FileManifest, AppState, DeploymentLog
 import os
 import json
 import signal
@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import zipfile
 import time
+import traceback
 from datetime import datetime
 
 main = Blueprint('main', __name__)
@@ -269,6 +270,10 @@ def stop_project(id):
         project.pid = None
         project.status = 'stopped'
         db.session.commit()
+        
+        # Update app state - mark as should NOT run on restart
+        from app.utils.deployment_manager import set_app_should_run
+        set_app_should_run(id, False)
     else:
         flash('Project is not running.')
     return redirect(url_for('main.project_details', id=id))
@@ -329,6 +334,10 @@ def start_project(id):
             project.status = 'running'
             db.session.commit()
             
+            # Update app state - mark as should run on restart
+            from app.utils.deployment_manager import set_app_should_run
+            set_app_should_run(id, True)
+            
             # Open firewall port
             if open_firewall_port(project.port):
                 flash(f'✓ Firewall: Port {project.port} opened', 'success')
@@ -380,6 +389,9 @@ def start_project(id):
                         project.pid = pid
                         project.status = 'running'
                         db.session.commit()
+                        
+                        # Update app state - mark as should run on restart
+                        set_app_should_run(id, True)
                         
                         # Open firewall port
                         if open_firewall_port(project.port):
@@ -433,6 +445,10 @@ def start_project(id):
                                 project.pid = pid
                                 project.status = 'running'
                                 db.session.commit()
+                                
+                                # Update app state - mark as should run on restart
+                                set_app_should_run(id, True)
+                                
                                 flash(f'✓✓ Project started successfully (PID: {pid})', 'success')
                                 flash(f'Updated entry point: {new_entry_point}', 'info')
                             else:
@@ -1981,3 +1997,290 @@ def add_sub_route_with_new_project(id):
         flash(f'Error creating project: {str(e)}', 'error')
     
     return redirect(url_for('main.project_details', id=id))
+
+
+# =====================
+# Deployment API - SSH gerektirmeyen HTTP tabanlı deployment
+# =====================
+
+@main.route('/api/deployment/projects')
+@login_required
+def api_deployment_list_projects():
+    """Tüm projeleri listele (deployment için)"""
+    projects = Project.query.all()
+    return jsonify({
+        'success': True,
+        'projects': [{
+            'id': p.id,
+            'name': p.name,
+            'path': p.path,
+            'status': p.status,
+            'port': p.port,
+            'domain': p.domain
+        } for p in projects]
+    })
+
+
+@main.route('/api/deployment/<int:project_id>/manifest')
+@login_required
+def api_deployment_get_manifest(project_id):
+    """Projenin dosya manifest'ini getir"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        
+        from app.utils.deployment_manager import DeploymentManager
+        dm = DeploymentManager(project_id)
+        
+        # Önce server dosyalarını tara ve manifest'i güncelle
+        manifest = dm.scan_server_files()
+        
+        return jsonify({
+            'success': True,
+            'project_id': project_id,
+            'project_name': project.name,
+            'manifest': manifest,
+            'file_count': len(manifest)
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Deployment manifest error for project {project_id}: {e}")
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@main.route('/api/deployment/<int:project_id>/compare', methods=['POST'])
+@login_required
+def api_deployment_compare(project_id):
+    """Yerel dosyaları server ile karşılaştır"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        data = request.get_json()
+        
+        if not data or 'local_files' not in data:
+            return jsonify({'success': False, 'error': 'local_files required'}), 400
+        
+        local_files = data['local_files']  # {path: {'hash': str, 'size': int}}
+        
+        from app.utils.deployment_manager import DeploymentManager, compare_manifests
+        dm = DeploymentManager(project_id)
+        
+        # Server manifest'i al
+        server_manifest = dm.scan_server_files()
+        
+        # Karşılaştır
+        diff = compare_manifests(local_files, server_manifest)
+        
+        return jsonify({
+            'success': True,
+            'project_id': project_id,
+            'diff': {
+                'added': diff['added'],
+                'modified': diff['modified'],
+                'deleted': diff['deleted'],
+                'unchanged_count': len(diff['unchanged'])
+            },
+            'total_changes': len(diff['added']) + len(diff['modified']) + len(diff['deleted'])
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Deployment compare error for project {project_id}: {e}")
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@main.route('/api/deployment/<int:project_id>/deploy', methods=['POST'])
+@login_required
+def api_deployment_deploy(project_id):
+    """Dosyaları deploy et"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        package = data.get('package', {})  # {path: {'content': base64, 'size': int, 'hash': str}}
+        deleted_files = data.get('deleted_files', [])
+        description = data.get('description', 'Deployment from panel')
+        restart_after = data.get('restart_after', True)
+        
+        if not package and not deleted_files:
+            return jsonify({'success': False, 'error': 'No files to deploy'}), 400
+        
+        from app.utils.deployment_manager import DeploymentManager
+        dm = DeploymentManager(project_id)
+        
+        # Projeyi durdur (gerekirse)
+        was_running = project.status == 'running'
+        if was_running:
+            stop_project_process(project)
+        
+        # Deploy et
+        result = dm.receive_deployment(package, deleted_files, description)
+        
+        # Projeyi yeniden başlat
+        if restart_after and was_running:
+            from app.utils.system import generate_supervisor_config
+            env_vars = json.loads(project.env_vars) if project.env_vars else {}
+            pid = generate_supervisor_config(
+                project.name,
+                project.project_type,
+                project.path,
+                project.port,
+                env_vars=env_vars,
+                entry_point=project.entry_point
+            )
+            if pid:
+                project.pid = pid
+                project.status = 'running'
+                db.session.commit()
+                result['restarted'] = True
+                result['new_pid'] = pid
+            else:
+                result['restarted'] = False
+                result['restart_error'] = 'Failed to restart'
+        
+        return jsonify({
+            'success': result['success'],
+            'applied': result['applied'],
+            'deleted': result.get('deleted', 0),
+            'errors': result.get('errors', []),
+            'restarted': result.get('restarted', False)
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Deployment deploy error for project {project_id}: {e}")
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@main.route('/api/deployment/<int:project_id>/history')
+@login_required
+def api_deployment_history(project_id):
+    """Deployment geçmişini getir"""
+    project = Project.query.get_or_404(project_id)
+    
+    from app.utils.deployment_manager import DeploymentManager
+    dm = DeploymentManager(project_id)
+    
+    history = dm.get_deployment_history(limit=50)
+    
+    return jsonify({
+        'success': True,
+        'project_id': project_id,
+        'history': history
+    })
+
+
+# =====================
+# App State Management - Restart sonrası otomatik başlatma
+# =====================
+
+@main.route('/api/app-state/<int:project_id>')
+@login_required
+def api_get_app_state(project_id):
+    """Projenin uygulama durumunu getir"""
+    project = Project.query.get_or_404(project_id)
+    
+    from app.utils.deployment_manager import get_or_create_app_state
+    state = get_or_create_app_state(project_id)
+    
+    return jsonify({
+        'success': True,
+        'project_id': project_id,
+        'should_run': state.should_run,
+        'auto_restart': state.auto_restart,
+        'last_started_at': state.last_started_at.isoformat() if state.last_started_at else None,
+        'last_stopped_at': state.last_stopped_at.isoformat() if state.last_stopped_at else None
+    })
+
+
+@main.route('/api/app-state/<int:project_id>/set', methods=['POST'])
+@login_required
+def api_set_app_state(project_id):
+    """Projenin restart sonrası durumunu ayarla"""
+    project = Project.query.get_or_404(project_id)
+    data = request.get_json()
+    
+    should_run = data.get('should_run', False)
+    auto_restart = data.get('auto_restart', True)
+    
+    from app.utils.deployment_manager import get_or_create_app_state
+    state = get_or_create_app_state(project_id)
+    state.should_run = should_run
+    state.auto_restart = auto_restart
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': f'App state updated: should_run={should_run}'
+    })
+
+
+@main.route('/api/app-state/restore-all', methods=['POST'])
+@login_required
+def api_restore_all_apps():
+    """Tüm should_run=True olan uygulamaları başlat"""
+    from app.utils.deployment_manager import restore_app_states
+    
+    results = restore_app_states()
+    
+    return jsonify({
+        'success': True,
+        'results': results,
+        'restored_count': len([r for r in results if r['status'] == 'started'])
+    })
+
+
+@main.route('/api/app-state/status')
+@login_required
+def api_app_state_status():
+    """Tüm projelerin app state durumunu getir"""
+    from app.utils.deployment_manager import get_or_create_app_state
+    
+    projects = Project.query.all()
+    states = []
+    
+    for project in projects:
+        state = get_or_create_app_state(project.id)
+        states.append({
+            'project_id': project.id,
+            'project_name': project.name,
+            'current_status': project.status,
+            'should_run': state.should_run,
+            'auto_restart': state.auto_restart
+        })
+    
+    return jsonify({
+        'success': True,
+        'states': states
+    })
+
+
+# =====================
+# Deployment Page
+# =====================
+
+@main.route('/deployment')
+@login_required
+def deployment_page():
+    """Deployment yönetim sayfası"""
+    projects = Project.query.all()
+    return render_template('deployment.html', projects=projects)
+
+
+@main.route('/projects/<int:id>/deployment')
+@login_required
+def project_deployment(id):
+    """Proje deployment sayfası"""
+    project = Project.query.get_or_404(id)
+    
+    from app.utils.deployment_manager import get_or_create_app_state, DeploymentManager
+    state = get_or_create_app_state(id)
+    dm = DeploymentManager(id)
+    history = dm.get_deployment_history(limit=10)
+    
+    return render_template('project_deployment.html', 
+                          project=project, 
+                          app_state=state,
+                          deployment_history=history)

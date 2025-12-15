@@ -22,7 +22,7 @@
         </div>
         
         <!-- Terminal Output -->
-        <div id="terminalOutput" class="bg-gray-900 p-6 font-mono text-sm text-green-400 h-96 overflow-y-auto">
+        <div id="terminalOutput" class="bg-gray-900 p-6 font-mono text-sm text-green-400 h-96 overflow-y-auto whitespace-pre-wrap break-words">
             <div class="text-gray-500">Welcome to VDS Panel Web Terminal</div>
             <div class="text-gray-500">Type your commands below...</div>
             <div class="mt-2"></div>
@@ -30,15 +30,15 @@
         
         <!-- Command Input -->
         <div class="bg-gray-800/80 px-6 py-4 border-t border-gray-700/50">
-            <form id="commandForm" class="flex gap-3">
-                <span class="text-green-400 font-mono flex-shrink-0">$</span>
-                <input 
-                    type="text" 
+            <form id="commandForm" class="flex gap-3 items-start">
+                <span class="text-green-400 font-mono flex-shrink-0 mt-2">$</span>
+                <textarea 
                     id="commandInput" 
                     autocomplete="off"
-                    placeholder="Enter command..."
-                    class="flex-1 bg-transparent border-none outline-none text-white font-mono placeholder-gray-600"
-                >
+                    placeholder="Enter command... (Shift+Enter for new line, Enter to execute)"
+                    rows="1"
+                    class="flex-1 bg-transparent border-none outline-none text-white font-mono placeholder-gray-600 resize-none overflow-hidden min-h-[36px]"
+                ></textarea>
                 <button 
                     type="submit" 
                     class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white font-medium transition-colors">
@@ -138,10 +138,10 @@ commandForm.addEventListener('submit', async (e) => {
         
         if (result.success) {
             if (result.output) {
-                addToTerminal(`<span class="text-white">${escapeHtml(result.output)}</span>`);
+                addToTerminal(`<span class="text-white">${escapeHtmlPreserveNewlines(result.output)}</span>`);
             }
             if (result.error) {
-                addToTerminal(`<span class="text-red-400">${escapeHtml(result.error)}</span>`);
+                addToTerminal(`<span class="text-red-400">${escapeHtmlPreserveNewlines(result.error)}</span>`);
             }
             if (!result.output && !result.error) {
                 addToTerminal(`<span class="text-gray-500">(no output)</span>`);
@@ -191,31 +191,51 @@ function updateHistory() {
         .join('');
 }
 
-// Navigate command history with arrow keys
+// Handle Enter key for submit, Shift+Enter for new line
 commandInput.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowUp') {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        commandForm.dispatchEvent(new Event('submit'));
+    } else if (e.key === 'ArrowUp' && !e.shiftKey && commandInput.value.indexOf('\n') === -1) {
+        // Only navigate history if single line mode
         e.preventDefault();
         if (historyIndex > 0) {
             historyIndex--;
             commandInput.value = commandHistory[historyIndex];
+            autoResize();
         }
-    } else if (e.key === 'ArrowDown') {
+    } else if (e.key === 'ArrowDown' && !e.shiftKey && commandInput.value.indexOf('\n') === -1) {
         e.preventDefault();
         if (historyIndex < commandHistory.length - 1) {
             historyIndex++;
             commandInput.value = commandHistory[historyIndex];
+            autoResize();
         } else {
             historyIndex = commandHistory.length;
             commandInput.value = '';
+            autoResize();
         }
     }
 });
+
+// Auto-resize textarea
+function autoResize() {
+    commandInput.style.height = 'auto';
+    commandInput.style.height = Math.min(commandInput.scrollHeight, 150) + 'px';
+}
+commandInput.addEventListener('input', autoResize);
 
 // Escape HTML
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Escape HTML and preserve newlines for terminal output
+function escapeHtmlPreserveNewlines(text) {
+    const escaped = escapeHtml(text);
+    return escaped.replace(/\n/g, '<br>');
 }
 
 // Focus input on load

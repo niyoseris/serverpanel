@@ -1,0 +1,896 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-8" id="deploymentPage" data-project-id="{{ project.id }}">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <div class="flex items-center gap-3 mb-2">
+                <a href="{{ url_for('main.deployment_page') }}" class="text-gray-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </a>
+                <h1 class="text-3xl font-bold text-white">{{ project.name }}</h1>
+                <span class="px-3 py-1 text-sm rounded-full {{ 'bg-green-500/20 text-green-400' if project.status == 'running' else 'bg-gray-500/20 text-gray-400' }}">
+                    {{ project.status }}
+                </span>
+            </div>
+            <p class="text-gray-400">{{ project.path }}</p>
+        </div>
+        <a href="{{ url_for('main.project_details', id=project.id) }}" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
+            Proje Detayları
+        </a>
+    </div>
+
+    <!-- App State Settings -->
+    <div class="glass-card rounded-2xl p-6">
+        <h2 class="text-xl font-semibold text-white mb-4">Uygulama Durumu Ayarları</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="p-4 bg-gray-800/50 rounded-xl">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-medium text-white">Restart Sonrası Başlat</h3>
+                        <p class="text-sm text-gray-400 mt-1">Server restart olduğunda bu uygulama otomatik başlatılsın mı?</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="shouldRunToggle" class="sr-only peer" {{ 'checked' if app_state.should_run else '' }}>
+                        <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+            </div>
+            <div class="p-4 bg-gray-800/50 rounded-xl">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-medium text-white">Auto-Restart</h3>
+                        <p class="text-sm text-gray-400 mt-1">Crash durumunda otomatik yeniden başlat</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="autoRestartToggle" class="sr-only peer" {{ 'checked' if app_state.auto_restart else '' }}>
+                        <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deployment Section -->
+    <div class="glass-card rounded-2xl p-6">
+        <h2 class="text-xl font-semibold text-white mb-4">Deployment</h2>
+        
+        <!-- Step 1: Get Server Manifest -->
+        <div class="mb-6">
+            <h3 class="text-lg font-medium text-white mb-3">1. Server Manifest</h3>
+            <p class="text-sm text-gray-400 mb-3">Server'daki dosyaların listesini ve hash'lerini alın.</p>
+            <button onclick="getServerManifest()" id="getManifestBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+                Manifest Al
+            </button>
+            <div id="manifestStatus" class="mt-3 hidden">
+                <div class="p-3 bg-gray-800/50 rounded-lg">
+                    <p class="text-sm text-gray-300"><span id="manifestFileCount">0</span> dosya bulundu</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Upload Files for Comparison -->
+        <div class="mb-6">
+            <h3 class="text-lg font-medium text-white mb-3">2. Yerel Dosyaları Seç</h3>
+            <p class="text-sm text-gray-400 mb-3">Deploy etmek istediğiniz proje klasörünü seçin.</p>
+            <input type="file" id="folderInput" webkitdirectory directory multiple class="hidden">
+            <div class="flex gap-3 flex-wrap">
+                <button onclick="document.getElementById('folderInput').click()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
+                    Klasör Seç
+                </button>
+                <button onclick="openFileSelectionModal()" id="reviewFilesBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors hidden">
+                    Dosyaları Düzenle
+                </button>
+            </div>
+            <div id="localFilesStatus" class="mt-3 hidden">
+                <div class="p-3 bg-gray-800/50 rounded-lg flex items-center justify-between">
+                    <p class="text-sm text-gray-300"><span id="localFileCount">0</span> dosya seçildi</p>
+                    <button onclick="openFileSelectionModal()" class="text-sm text-indigo-400 hover:text-indigo-300">Dosyaları Gözden Geçir →</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Compare & Deploy -->
+        <div class="mb-6">
+            <h3 class="text-lg font-medium text-white mb-3">3. Karşılaştır ve Deploy Et</h3>
+            <p class="text-sm text-gray-400 mb-3">Değişiklikleri karşılaştırın ve deploy edin.</p>
+            <div class="flex gap-3">
+                <button onclick="compareFiles()" id="compareBtn" disabled class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors">
+                    Karşılaştır
+                </button>
+                <button onclick="deployFiles()" id="deployBtn" disabled class="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors">
+                    Deploy Et
+                </button>
+            </div>
+        </div>
+
+        <!-- Comparison Results -->
+        <div id="comparisonResults" class="hidden">
+            <h3 class="text-lg font-medium text-white mb-3">Değişiklikler</h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div class="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                    <p class="text-xs text-green-400 uppercase">Yeni</p>
+                    <p class="text-2xl font-bold text-green-400" id="addedCount">0</p>
+                </div>
+                <div class="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                    <p class="text-xs text-yellow-400 uppercase">Değişen</p>
+                    <p class="text-2xl font-bold text-yellow-400" id="modifiedCount">0</p>
+                </div>
+                <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                    <p class="text-xs text-red-400 uppercase">Silinen</p>
+                    <p class="text-2xl font-bold text-red-400" id="deletedCount">0</p>
+                </div>
+                <div class="p-3 bg-gray-500/10 border border-gray-500/20 rounded-lg">
+                    <p class="text-xs text-gray-400 uppercase">Değişmeyen</p>
+                    <p class="text-2xl font-bold text-gray-400" id="unchangedCount">0</p>
+                </div>
+            </div>
+            
+            <div id="filesList" class="max-h-60 overflow-y-auto bg-gray-800/50 rounded-lg p-3">
+                <!-- File changes will be listed here -->
+            </div>
+        </div>
+
+        <!-- Deploy Options -->
+        <div id="deployOptions" class="hidden mt-4 p-4 bg-gray-800/50 rounded-lg">
+            <label class="flex items-center gap-2 text-sm text-gray-300">
+                <input type="checkbox" id="restartAfterDeploy" checked class="rounded bg-gray-700 border-gray-600">
+                Deployment sonrası uygulamayı yeniden başlat
+            </label>
+            <div class="mt-3">
+                <label class="block text-sm text-gray-400 mb-1">Açıklama (opsiyonel)</label>
+                <input type="text" id="deployDescription" placeholder="Bu deployment hakkında not..." 
+                       class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500">
+            </div>
+        </div>
+    </div>
+
+    <!-- Deployment History -->
+    <div class="glass-card rounded-2xl p-6">
+        <h2 class="text-xl font-semibold text-white mb-4">Deployment Geçmişi</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="text-left text-gray-400 text-sm border-b border-gray-700">
+                        <th class="pb-3 pr-4">Tarih</th>
+                        <th class="pb-3 pr-4">Değişen</th>
+                        <th class="pb-3 pr-4">Silinen</th>
+                        <th class="pb-3 pr-4">Boyut</th>
+                        <th class="pb-3 pr-4">Durum</th>
+                        <th class="pb-3">Açıklama</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in deployment_history %}
+                    <tr class="border-b border-gray-700/50">
+                        <td class="py-3 pr-4 text-gray-300">{{ log.deployed_at[:19] }}</td>
+                        <td class="py-3 pr-4 text-green-400">+{{ log.files_changed }}</td>
+                        <td class="py-3 pr-4 text-red-400">-{{ log.files_deleted }}</td>
+                        <td class="py-3 pr-4 text-gray-400">{{ (log.total_size / 1024)|round(1) }} KB</td>
+                        <td class="py-3 pr-4">
+                            <span class="px-2 py-1 text-xs rounded-full {{ 'bg-green-500/20 text-green-400' if log.status == 'success' else 'bg-yellow-500/20 text-yellow-400' if log.status == 'partial' else 'bg-red-500/20 text-red-400' }}">
+                                {{ log.status }}
+                            </span>
+                        </td>
+                        <td class="py-3 text-gray-400 truncate max-w-xs">{{ log.description or '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="py-8 text-center text-gray-500">Henüz deployment yapılmamış</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- File Selection Modal -->
+<div id="fileSelectionModal" class="hidden fixed inset-0 bg-gray-900/80 z-50 flex items-center justify-center p-4">
+    <div class="bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col border border-gray-700">
+        <div class="p-6 border-b border-gray-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-bold text-white">Dosya ve Klasörleri Seç</h2>
+                    <p class="text-sm text-gray-400 mt-1">Deploy edilecek dosyaları seçin veya hariç tutun</p>
+                </div>
+                <button type="button" onclick="closeFileSelectionModal()" class="text-gray-400 hover:text-white transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="flex items-center gap-2 mt-4 flex-wrap">
+                <button type="button" onclick="selectAllFiles()" class="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
+                    ✓ Tümünü Seç
+                </button>
+                <button type="button" onclick="deselectAllFiles()" class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors">
+                    ✗ Tümünü Kaldır
+                </button>
+                <button type="button" onclick="excludeCommonFolders()" class="px-3 py-1.5 text-sm bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors">
+                    🚫 Yaygın Klasörleri Hariç Tut
+                </button>
+                <button type="button" onclick="toggleShowFiles()" id="toggleFilesBtn" class="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                    📄 Dosyaları Göster
+                </button>
+            </div>
+            <div class="mt-3 text-sm text-gray-400">
+                Seçili: <span id="selectedFileCount" class="font-bold text-indigo-400">0</span> / <span id="totalFileCount">0</span> dosya
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 bg-gray-900/50">
+            <div id="fileTreeContainer" class="space-y-1"></div>
+        </div>
+        <div class="p-4 border-t border-gray-700 flex justify-end gap-3">
+            <button type="button" onclick="closeFileSelectionModal()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
+                İptal
+            </button>
+            <button type="button" onclick="confirmFileSelection()" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+                Seçimi Onayla
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+const projectId = Number(document.getElementById('deploymentPage').dataset.projectId);
+let serverManifest = {};
+let localFiles = {};
+let comparisonDiff = null;
+
+// File selection modal state
+let allFiles = [];
+let selectedFiles = new Set();
+let showFilesInTree = false;
+let expandedFolders = new Set();
+const commonExcludes = ['venv', '.venv', 'env', '__pycache__', 'node_modules', '.git', '.svn', '.hg',
+                        '.vscode', '.idea', 'dist', 'build', '.pytest_cache', '.mypy_cache', 
+                        'coverage', '.coverage', '.DS_Store', '*.pyc', '*.pyo', '*.log', '*.sqlite', '*.db'];
+
+// Toggle handlers
+document.getElementById('shouldRunToggle').addEventListener('change', async function() {
+    await updateAppState(this.checked, document.getElementById('autoRestartToggle').checked);
+});
+
+document.getElementById('autoRestartToggle').addEventListener('change', async function() {
+    await updateAppState(document.getElementById('shouldRunToggle').checked, this.checked);
+});
+
+async function updateAppState(shouldRun, autoRestart) {
+    try {
+        const response = await fetch(`/api/app-state/${projectId}/set`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ should_run: shouldRun, auto_restart: autoRestart })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert('Güncelleme başarısız: ' + (data.error || 'Bilinmeyen hata'));
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Hata: ' + error.message);
+    }
+}
+
+async function getServerManifest() {
+    const btn = document.getElementById('getManifestBtn');
+    btn.disabled = true;
+    btn.textContent = 'Yükleniyor...';
+    
+    try {
+        const response = await fetch(`/api/deployment/${projectId}/manifest`);
+        const data = await response.json();
+        
+        if (data.success) {
+            serverManifest = data.manifest;
+            document.getElementById('manifestFileCount').textContent = data.file_count;
+            document.getElementById('manifestStatus').classList.remove('hidden');
+            updateCompareButton();
+        } else {
+            alert('Hata: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Hata: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Manifest Al';
+    }
+}
+
+// File selection handler
+document.getElementById('folderInput').addEventListener('change', async function(e) {
+    const files = e.target.files;
+    allFiles = Array.from(files);
+    selectedFiles.clear();
+    localFiles = {};
+    
+    const statusDiv = document.getElementById('localFilesStatus');
+    statusDiv.classList.remove('hidden');
+    document.getElementById('localFileCount').textContent = 'İşleniyor...';
+    document.getElementById('reviewFilesBtn').classList.remove('hidden');
+    
+    // Initialize all non-ignored files as selected
+    for (let i = 0; i < allFiles.length; i++) {
+        const path = allFiles[i].webkitRelativePath;
+        if (!shouldIgnore(path)) {
+            selectedFiles.add(i);
+        }
+    }
+    
+    // Process selected files
+    await processSelectedFiles();
+});
+
+async function processSelectedFiles() {
+    localFiles = {};
+    document.getElementById('localFileCount').textContent = 'İşleniyor...';
+    
+    for (const idx of selectedFiles) {
+        const file = allFiles[idx];
+        const path = file.webkitRelativePath;
+        
+        // Get relative path (remove first folder name)
+        const parts = path.split('/');
+        parts.shift(); // Remove root folder
+        const relativePath = parts.join('/');
+        
+        if (relativePath) {
+            let hash;
+            try {
+                hash = await calculateFileHash(file);
+            } catch (error) {
+                console.error('Hash calculation failed:', error);
+                alert('Dosya hash hesaplama başarısız: ' + (error?.message || error));
+                document.getElementById('localFileCount').textContent = '0';
+                localFiles = {};
+                updateCompareButton();
+                return;
+            }
+            localFiles[relativePath] = {
+                hash: hash,
+                size: file.size,
+                file: file
+            };
+        }
+    }
+    
+    document.getElementById('localFileCount').textContent = Object.keys(localFiles).length;
+    updateCompareButton();
+}
+
+// Modal functions
+function openFileSelectionModal() {
+    if (allFiles.length === 0) {
+        alert('Önce bir klasör seçin');
+        return;
+    }
+    buildFileTree();
+    document.getElementById('fileSelectionModal').classList.remove('hidden');
+}
+
+function closeFileSelectionModal() {
+    document.getElementById('fileSelectionModal').classList.add('hidden');
+}
+
+async function confirmFileSelection() {
+    closeFileSelectionModal();
+    await processSelectedFiles();
+}
+
+function selectAllFiles() {
+    selectedFiles.clear();
+    allFiles.forEach((file, idx) => {
+        if (!shouldIgnore(file.webkitRelativePath)) {
+            selectedFiles.add(idx);
+        }
+    });
+    updateTreeCheckboxes();
+    updateSelectedCount();
+}
+
+function deselectAllFiles() {
+    selectedFiles.clear();
+    updateTreeCheckboxes();
+    updateSelectedCount();
+}
+
+function excludeCommonFolders() {
+    allFiles.forEach((file, idx) => {
+        const path = file.webkitRelativePath;
+        const pathParts = path.split('/');
+        
+        // Check if any part of the path matches common excludes
+        const shouldExclude = pathParts.some(part => {
+            if (commonExcludes.includes(part)) return true;
+            // Check pattern matches like *.pyc
+            for (const pattern of commonExcludes) {
+                if (pattern.startsWith('*.') && part.endsWith(pattern.slice(1))) {
+                    return true;
+                }
+            }
+            return false;
+        });
+        
+        if (shouldExclude) {
+            selectedFiles.delete(idx);
+        }
+    });
+    updateTreeCheckboxes();
+    updateSelectedCount();
+}
+
+function toggleShowFiles() {
+    showFilesInTree = !showFilesInTree;
+    const btn = document.getElementById('toggleFilesBtn');
+    if (showFilesInTree) {
+        btn.textContent = '📁 Dosyaları Gizle';
+        btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+        btn.classList.add('bg-green-600', 'hover:bg-green-700');
+    } else {
+        btn.textContent = '📄 Dosyaları Göster';
+        btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+        btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+    }
+    buildFileTree();
+}
+
+function updateSelectedCount() {
+    document.getElementById('selectedFileCount').textContent = selectedFiles.size;
+    document.getElementById('totalFileCount').textContent = allFiles.length;
+}
+
+function buildFileTree() {
+    const container = document.getElementById('fileTreeContainer');
+    container.innerHTML = '';
+    
+    // Build tree structure
+    const tree = {};
+    allFiles.forEach((file, idx) => {
+        const path = file.webkitRelativePath;
+        const parts = path.split('/');
+        parts.shift(); // Remove root folder
+        
+        let current = tree;
+        parts.forEach((part, i) => {
+            if (!current[part]) {
+                current[part] = {
+                    isFile: i === parts.length - 1,
+                    children: {},
+                    indices: []
+                };
+            }
+            if (i === parts.length - 1) {
+                current[part].indices.push(idx);
+            } else {
+                current = current[part].children;
+            }
+        });
+    });
+    
+    renderTree(tree, container, '');
+    updateSelectedCount();
+}
+
+function renderTree(node, container, prefix) {
+    const entries = Object.entries(node).sort((a, b) => {
+        // Folders first, then files
+        if (!a[1].isFile && b[1].isFile) return -1;
+        if (a[1].isFile && !b[1].isFile) return 1;
+        return a[0].localeCompare(b[0]);
+    });
+    
+    entries.forEach(([name, data]) => {
+        // Skip files if showFilesInTree is false
+        if (data.isFile && !showFilesInTree) return;
+        
+        const div = document.createElement('div');
+        div.className = 'flex items-center gap-2 py-1.5 px-3 hover:bg-gray-700/50 rounded-lg transition-colors';
+        div.style.paddingLeft = `${prefix.split('/').length * 16}px`;
+        
+        // Expand/collapse button for folders
+        if (!data.isFile && Object.keys(data.children).length > 0) {
+            const expandBtn = document.createElement('button');
+            expandBtn.type = 'button';
+            expandBtn.className = 'text-gray-400 hover:text-white flex-shrink-0 w-4 text-xs';
+            const folderPath = prefix + name;
+            const isExpanded = expandedFolders.has(folderPath);
+            expandBtn.textContent = isExpanded ? '▼' : '▶';
+            
+            expandBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (expandedFolders.has(folderPath)) {
+                    expandedFolders.delete(folderPath);
+                } else {
+                    expandedFolders.add(folderPath);
+                }
+                buildFileTree();
+            });
+            
+            div.appendChild(expandBtn);
+        } else {
+            const spacer = document.createElement('span');
+            spacer.className = 'w-4';
+            div.appendChild(spacer);
+        }
+        
+        // Checkbox
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'h-4 w-4 rounded bg-gray-700 border-gray-600 text-indigo-600 focus:ring-indigo-500';
+        checkbox.dataset.path = prefix + name;
+        
+        if (data.isFile) {
+            checkbox.dataset.indices = JSON.stringify(data.indices);
+            checkbox.checked = data.indices.every(idx => selectedFiles.has(idx));
+            
+            checkbox.addEventListener('change', function() {
+                const indices = JSON.parse(this.dataset.indices);
+                if (this.checked) {
+                    indices.forEach(idx => selectedFiles.add(idx));
+                } else {
+                    indices.forEach(idx => selectedFiles.delete(idx));
+                }
+                updateSelectedCount();
+            });
+        } else {
+            // For folders, collect all file indices
+            const allIndices = collectIndices(data.children);
+            if (data.indices) allIndices.push(...data.indices);
+            checkbox.dataset.indices = JSON.stringify(allIndices);
+            checkbox.checked = allIndices.length > 0 && allIndices.every(idx => selectedFiles.has(idx));
+            checkbox.indeterminate = !checkbox.checked && allIndices.some(idx => selectedFiles.has(idx));
+            
+            checkbox.addEventListener('change', function() {
+                const indices = JSON.parse(this.dataset.indices);
+                if (this.checked) {
+                    indices.forEach(idx => selectedFiles.add(idx));
+                } else {
+                    indices.forEach(idx => selectedFiles.delete(idx));
+                }
+                updateTreeCheckboxes();
+                updateSelectedCount();
+            });
+        }
+        
+        div.appendChild(checkbox);
+        
+        // Icon and name
+        const icon = document.createElement('span');
+        icon.className = 'text-base';
+        if (!data.isFile) {
+            icon.textContent = expandedFolders.has(prefix + name) ? '📂' : '📁';
+        } else {
+            icon.textContent = '📄';
+        }
+        div.appendChild(icon);
+        
+        const label = document.createElement('span');
+        label.className = data.isFile ? 'text-gray-300 text-sm' : 'text-white font-medium text-sm';
+        label.textContent = name;
+        div.appendChild(label);
+        
+        container.appendChild(div);
+        
+        // Render children if expanded
+        if (!data.isFile && expandedFolders.has(prefix + name)) {
+            renderTree(data.children, container, prefix + name + '/');
+        }
+    });
+}
+
+function collectIndices(node) {
+    let indices = [];
+    Object.values(node).forEach(data => {
+        if (data.indices) indices.push(...data.indices);
+        if (data.children) indices.push(...collectIndices(data.children));
+    });
+    return indices;
+}
+
+function updateTreeCheckboxes() {
+    const checkboxes = document.querySelectorAll('#fileTreeContainer input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        const indices = JSON.parse(checkbox.dataset.indices || '[]');
+        if (indices.length > 0) {
+            checkbox.checked = indices.every(idx => selectedFiles.has(idx));
+            checkbox.indeterminate = !checkbox.checked && indices.some(idx => selectedFiles.has(idx));
+        }
+    });
+}
+
+function shouldIgnore(path) {
+    const ignorePatterns = [
+        '__pycache__', '.git', '.svn', '.hg',
+        'venv', '.venv', 'env', 'node_modules',
+        '.idea', '.vscode', '.DS_Store',
+        '.pyc', '.pyo', '.log', '.sqlite', '.db'
+    ];
+    
+    for (const pattern of ignorePatterns) {
+        if (path.includes('/' + pattern + '/') || path.includes('/' + pattern) || 
+            path.endsWith(pattern) || path.includes(pattern + '/')) {
+            return true;
+        }
+    }
+    return false;
+}
+
+async function calculateFileHash(file) {
+    const buffer = await file.arrayBuffer();
+    const subtle = globalThis.crypto && globalThis.crypto.subtle;
+    if (subtle && typeof subtle.digest === 'function') {
+        const hashBuffer = await subtle.digest('SHA-256', buffer);
+        return arrayBufferToHex(hashBuffer);
+    }
+    return sha256ArrayBufferToHex(buffer);
+}
+
+function arrayBufferToHex(arrayBuffer) {
+    const bytes = new Uint8Array(arrayBuffer);
+    let hex = '';
+    for (let i = 0; i < bytes.length; i++) {
+        hex += bytes[i].toString(16).padStart(2, '0');
+    }
+    return hex;
+}
+
+function sha256ArrayBufferToHex(arrayBuffer) {
+    const K = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+    ];
+ 
+    let h0 = 0x6a09e667;
+    let h1 = 0xbb67ae85;
+    let h2 = 0x3c6ef372;
+    let h3 = 0xa54ff53a;
+    let h4 = 0x510e527f;
+    let h5 = 0x9b05688c;
+    let h6 = 0x1f83d9ab;
+    let h7 = 0x5be0cd19;
+ 
+    const bytes = new Uint8Array(arrayBuffer);
+    const l = bytes.length;
+ 
+    const totalLen = (((l + 9 + 63) >> 6) << 6);
+    const padded = new Uint8Array(totalLen);
+    padded.set(bytes);
+    padded[l] = 0x80;
+ 
+    const bitLenHi = Math.floor((l * 8) / 0x100000000);
+    const bitLenLo = (l * 8) >>> 0;
+    const view = new DataView(padded.buffer);
+    view.setUint32(totalLen - 8, bitLenHi);
+    view.setUint32(totalLen - 4, bitLenLo);
+ 
+    const w = new Uint32Array(64);
+    for (let i = 0; i < totalLen; i += 64) {
+        for (let t = 0; t < 16; t++) {
+            w[t] = view.getUint32(i + (t * 4));
+        }
+        for (let t = 16; t < 64; t++) {
+            const s0 = rotr(w[t - 15], 7) ^ rotr(w[t - 15], 18) ^ (w[t - 15] >>> 3);
+            const s1 = rotr(w[t - 2], 17) ^ rotr(w[t - 2], 19) ^ (w[t - 2] >>> 10);
+            w[t] = (w[t - 16] + s0 + w[t - 7] + s1) >>> 0;
+        }
+ 
+        let a = h0;
+        let b = h1;
+        let c = h2;
+        let d = h3;
+        let e = h4;
+        let f = h5;
+        let g = h6;
+        let h = h7;
+ 
+        for (let t = 0; t < 64; t++) {
+            const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+            const ch = (e & f) ^ (~e & g);
+            const temp1 = (h + S1 + ch + K[t] + w[t]) >>> 0;
+            const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+            const maj = (a & b) ^ (a & c) ^ (b & c);
+            const temp2 = (S0 + maj) >>> 0;
+ 
+            h = g;
+            g = f;
+            f = e;
+            e = (d + temp1) >>> 0;
+            d = c;
+            c = b;
+            b = a;
+            a = (temp1 + temp2) >>> 0;
+        }
+ 
+        h0 = (h0 + a) >>> 0;
+        h1 = (h1 + b) >>> 0;
+        h2 = (h2 + c) >>> 0;
+        h3 = (h3 + d) >>> 0;
+        h4 = (h4 + e) >>> 0;
+        h5 = (h5 + f) >>> 0;
+        h6 = (h6 + g) >>> 0;
+        h7 = (h7 + h) >>> 0;
+    }
+ 
+    const out = new Uint8Array(32);
+    const outView = new DataView(out.buffer);
+    outView.setUint32(0, h0);
+    outView.setUint32(4, h1);
+    outView.setUint32(8, h2);
+    outView.setUint32(12, h3);
+    outView.setUint32(16, h4);
+    outView.setUint32(20, h5);
+    outView.setUint32(24, h6);
+    outView.setUint32(28, h7);
+ 
+    return arrayBufferToHex(out.buffer);
+}
+
+function rotr(x, n) {
+    return (x >>> n) | (x << (32 - n));
+}
+
+function updateCompareButton() {
+    const canCompare = Object.keys(serverManifest).length > 0 || Object.keys(localFiles).length > 0;
+    document.getElementById('compareBtn').disabled = !canCompare || Object.keys(localFiles).length === 0;
+}
+
+async function compareFiles() {
+    const btn = document.getElementById('compareBtn');
+    btn.disabled = true;
+    btn.textContent = 'Karşılaştırılıyor...';
+    
+    try {
+        // Prepare local files for comparison (without file objects)
+        const localFilesForCompare = {};
+        for (const [path, info] of Object.entries(localFiles)) {
+            localFilesForCompare[path] = { hash: info.hash, size: info.size };
+        }
+        
+        const response = await fetch(`/api/deployment/${projectId}/compare`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ local_files: localFilesForCompare })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            comparisonDiff = data.diff;
+            displayComparison(data.diff);
+            document.getElementById('deployBtn').disabled = data.total_changes === 0;
+            document.getElementById('deployOptions').classList.toggle('hidden', data.total_changes === 0);
+        } else {
+            alert('Hata: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Hata: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Karşılaştır';
+    }
+}
+
+function displayComparison(diff) {
+    document.getElementById('comparisonResults').classList.remove('hidden');
+    
+    document.getElementById('addedCount').textContent = diff.added.length;
+    document.getElementById('modifiedCount').textContent = diff.modified.length;
+    document.getElementById('deletedCount').textContent = diff.deleted.length;
+    document.getElementById('unchangedCount').textContent = diff.unchanged_count;
+    
+    const filesList = document.getElementById('filesList');
+    let html = '';
+    
+    diff.added.forEach(path => {
+        html += `<div class="py-1 text-sm"><span class="text-green-400">+ ${path}</span></div>`;
+    });
+    
+    diff.modified.forEach(path => {
+        html += `<div class="py-1 text-sm"><span class="text-yellow-400">~ ${path}</span></div>`;
+    });
+    
+    diff.deleted.forEach(path => {
+        html += `<div class="py-1 text-sm"><span class="text-red-400">- ${path}</span></div>`;
+    });
+    
+    if (!html) {
+        html = '<div class="py-4 text-center text-gray-500">Değişiklik yok</div>';
+    }
+    
+    filesList.innerHTML = html;
+}
+
+async function deployFiles() {
+    if (!comparisonDiff) {
+        alert('Önce dosyaları karşılaştırın');
+        return;
+    }
+    
+    const totalChanges = comparisonDiff.added.length + comparisonDiff.modified.length + comparisonDiff.deleted.length;
+    if (totalChanges === 0) {
+        alert('Deploy edilecek değişiklik yok');
+        return;
+    }
+    
+    if (!confirm(`${totalChanges} dosya değişikliği deploy edilecek. Devam etmek istiyor musunuz?`)) {
+        return;
+    }
+    
+    const btn = document.getElementById('deployBtn');
+    btn.disabled = true;
+    btn.textContent = 'Deploy ediliyor...';
+    
+    try {
+        // Prepare package with file contents
+        const package_ = {};
+        const filesToDeploy = [...comparisonDiff.added, ...comparisonDiff.modified];
+        
+        for (const path of filesToDeploy) {
+            const fileInfo = localFiles[path];
+            if (fileInfo && fileInfo.file) {
+                const content = await fileToBase64(fileInfo.file);
+                package_[path] = {
+                    content: content,
+                    size: fileInfo.size,
+                    hash: fileInfo.hash
+                };
+            }
+        }
+        
+        const response = await fetch(`/api/deployment/${projectId}/deploy`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                package: package_,
+                deleted_files: comparisonDiff.deleted,
+                description: document.getElementById('deployDescription').value || null,
+                restart_after: document.getElementById('restartAfterDeploy').checked
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            let message = `Deployment başarılı!\n- ${data.applied} dosya güncellendi\n- ${data.deleted} dosya silindi`;
+            if (data.restarted) {
+                message += '\n- Uygulama yeniden başlatıldı';
+            }
+            alert(message);
+            location.reload();
+        } else {
+            alert('Deployment başarısız: ' + (data.errors?.join(', ') || 'Bilinmeyen hata'));
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Hata: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Deploy Et';
+    }
+}
+
+async function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const base64 = reader.result.split(',')[1];
+            resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+</script>
+{% endblock %}
