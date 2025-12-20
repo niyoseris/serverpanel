@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+<div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8" x-data="{ activeTab: 'versions' }" id="versionsPage" data-project-id="{{ project.id }}">
     <!-- Header -->
     <div class="mb-8">
         <div class="flex items-center justify-between">
             <div>
                 <h1 class="text-3xl font-bold gradient-text">
-                    📦 {{ project.name }} - Versions
+                    📦 {{ project.name }} - Versions & Deployment
                 </h1>
                 <p class="mt-2 text-gray-400">
-                    Manage and restore previous versions of your project
+                    Manage versions and deploy your project
                 </p>
             </div>
             <div class="flex gap-3">
@@ -29,7 +29,31 @@
         </div>
     </div>
 
-    <!-- Info Banner -->
+    <!-- Tabs -->
+    <div class="border-b border-gray-700 mb-6">
+        <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+            <button @click="activeTab = 'versions'"
+                :class="{ 'border-indigo-500 text-indigo-500': activeTab === 'versions', 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300': activeTab !== 'versions' }"
+                class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+                </svg>
+                Versions
+            </button>
+            <button @click="activeTab = 'deployment'"
+                :class="{ 'border-indigo-500 text-indigo-500': activeTab === 'deployment', 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300': activeTab !== 'deployment' }"
+                class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                </svg>
+                Deployment
+            </button>
+        </nav>
+    </div>
+
+    <!-- Versions Tab Content -->
+    <div x-show="activeTab === 'versions'" class="space-y-6">
+        <!-- Info Banner -->
     <div class="glass-card rounded-xl p-4 mb-6 border-l-4 border-indigo-500">
         <div class="flex items-start">
             <div class="flex-shrink-0">
@@ -155,5 +179,840 @@
         </div>
     </div>
     {% endif %}
+    </div>
+
+    <!-- Deployment Tab Content -->
+    <div x-show="activeTab === 'deployment'" style="display: none;" class="space-y-6">
+        <!-- App State Settings -->
+        <div class="glass-card rounded-2xl p-6">
+            <h2 class="text-xl font-semibold text-white mb-4">Application State Settings</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="p-4 bg-gray-800/50 rounded-xl">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-medium text-white">Start After Restart</h3>
+                            <p class="text-sm text-gray-400 mt-1">Should this application auto-start when server restarts?</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="shouldRunToggle" class="sr-only peer" {{ 'checked' if app_state.should_run else '' }}>
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                        </label>
+                    </div>
+                </div>
+                <div class="p-4 bg-gray-800/50 rounded-xl">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-medium text-white">Auto-Restart</h3>
+                            <p class="text-sm text-gray-400 mt-1">Automatically restart on crash</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="autoRestartToggle" class="sr-only peer" {{ 'checked' if app_state.auto_restart else '' }}>
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Deployment Section -->
+        <div class="glass-card rounded-2xl p-6">
+            <h2 class="text-xl font-semibold text-white mb-4">Deployment</h2>
+            
+            <!-- Step 1: Get Server Manifest -->
+            <div class="mb-6">
+                <h3 class="text-lg font-medium text-white mb-3">1. Server Manifest</h3>
+                <p class="text-sm text-gray-400 mb-3">Get the list of files and their hashes from the server.</p>
+                <button onclick="getServerManifest()" id="getManifestBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+                    Get Manifest
+                </button>
+                <div id="manifestStatus" class="mt-3 hidden">
+                    <div class="p-3 bg-gray-800/50 rounded-lg">
+                        <p class="text-sm text-gray-300"><span id="manifestFileCount">0</span> files found</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Upload Files for Comparison -->
+            <div class="mb-6">
+                <h3 class="text-lg font-medium text-white mb-3">2. Select Local Files</h3>
+                <p class="text-sm text-gray-400 mb-3">Select the project folder you want to deploy.</p>
+                <input type="file" id="folderInput" webkitdirectory directory multiple class="hidden">
+                <div class="flex gap-3 flex-wrap">
+                    <button onclick="document.getElementById('folderInput').click()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
+                        Select Folder
+                    </button>
+                    <button onclick="openFileSelectionModal()" id="reviewFilesBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors hidden">
+                        Edit Files
+                    </button>
+                </div>
+                <div id="localFilesStatus" class="mt-3 hidden">
+                    <div class="p-3 bg-gray-800/50 rounded-lg flex items-center justify-between">
+                        <p class="text-sm text-gray-300"><span id="localFileCount">0</span> files selected</p>
+                        <button onclick="openFileSelectionModal()" class="text-sm text-indigo-400 hover:text-indigo-300">Review Files →</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Compare & Deploy -->
+            <div class="mb-6">
+                <h3 class="text-lg font-medium text-white mb-3">3. Compare and Deploy</h3>
+                <p class="text-sm text-gray-400 mb-3">Compare changes and deploy them.</p>
+                <div class="flex gap-3">
+                    <button onclick="compareFiles()" id="compareBtn" disabled class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors">
+                        Compare
+                    </button>
+                    <button onclick="deployFiles()" id="deployBtn" disabled class="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors">
+                        Deploy
+                    </button>
+                </div>
+            </div>
+
+            <!-- Comparison Results -->
+            <div id="comparisonResults" class="hidden">
+                <h3 class="text-lg font-medium text-white mb-3">Changes</h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div class="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                        <p class="text-xs text-green-400 uppercase">New</p>
+                        <p class="text-2xl font-bold text-green-400" id="addedCount">0</p>
+                    </div>
+                    <div class="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                        <p class="text-xs text-yellow-400 uppercase">Modified</p>
+                        <p class="text-2xl font-bold text-yellow-400" id="modifiedCount">0</p>
+                    </div>
+                    <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                        <p class="text-xs text-red-400 uppercase">Deleted</p>
+                        <p class="text-2xl font-bold text-red-400" id="deletedCount">0</p>
+                    </div>
+                    <div class="p-3 bg-gray-500/10 border border-gray-500/20 rounded-lg">
+                        <p class="text-xs text-gray-400 uppercase">Unchanged</p>
+                        <p class="text-2xl font-bold text-gray-400" id="unchangedCount">0</p>
+                    </div>
+                </div>
+                
+                <div id="filesList" class="max-h-60 overflow-y-auto bg-gray-800/50 rounded-lg p-3">
+                    <!-- File changes will be listed here -->
+                </div>
+            </div>
+
+            <!-- Deploy Options -->
+            <div id="deployOptions" class="hidden mt-4 p-4 bg-gray-800/50 rounded-lg">
+                <label class="flex items-center gap-2 text-sm text-gray-300">
+                    <input type="checkbox" id="restartAfterDeploy" checked class="rounded bg-gray-700 border-gray-600">
+                    Restart application after deployment
+                </label>
+                <div class="mt-3">
+                    <label class="block text-sm text-gray-400 mb-1">Description (optional)</label>
+                    <input type="text" id="deployDescription" placeholder="Note about this deployment..." 
+                           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500">
+                </div>
+            </div>
+        </div>
+
+        <!-- Deployment History -->
+        <div class="glass-card rounded-2xl p-6">
+            <h2 class="text-xl font-semibold text-white mb-4">Deployment History</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="text-left text-gray-400 text-sm border-b border-gray-700">
+                            <th class="pb-3 pr-4">Date</th>
+                            <th class="pb-3 pr-4">Changed</th>
+                            <th class="pb-3 pr-4">Deleted</th>
+                            <th class="pb-3 pr-4">Size</th>
+                            <th class="pb-3 pr-4">Status</th>
+                            <th class="pb-3">Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in deployment_history %}
+                        <tr class="border-b border-gray-700/50">
+                            <td class="py-3 pr-4 text-gray-300">{{ log.deployed_at[:19] }}</td>
+                            <td class="py-3 pr-4 text-green-400">+{{ log.files_changed }}</td>
+                            <td class="py-3 pr-4 text-red-400">-{{ log.files_deleted }}</td>
+                            <td class="py-3 pr-4 text-gray-400">{{ (log.total_size / 1024)|round(1) }} KB</td>
+                            <td class="py-3 pr-4">
+                                <span class="px-2 py-1 text-xs rounded-full {{ 'bg-green-500/20 text-green-400' if log.status == 'success' else 'bg-yellow-500/20 text-yellow-400' if log.status == 'partial' else 'bg-red-500/20 text-red-400' }}">
+                                    {{ log.status }}
+                                </span>
+                            </td>
+                            <td class="py-3 text-gray-400 truncate max-w-xs">{{ log.description or '-' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="py-8 text-center text-gray-500">No deployments yet</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
+
+<!-- File Selection Modal -->
+<div id="fileSelectionModal" class="hidden fixed inset-0 bg-gray-900/80 z-50 flex items-center justify-center p-4">
+    <div class="bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col border border-gray-700">
+        <div class="p-6 border-b border-gray-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-bold text-white">Select Files and Folders</h2>
+                    <p class="text-sm text-gray-400 mt-1">Select files to deploy or exclude</p>
+                </div>
+                <button type="button" onclick="closeFileSelectionModal()" class="text-gray-400 hover:text-white transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="flex items-center gap-2 mt-4 flex-wrap">
+                <button type="button" onclick="selectAllFiles()" class="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
+                    ✓ Select All
+                </button>
+                <button type="button" onclick="deselectAllFiles()" class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors">
+                    ✗ Deselect All
+                </button>
+                <button type="button" onclick="excludeCommonFolders()" class="px-3 py-1.5 text-sm bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors">
+                    🚫 Exclude Common Folders
+                </button>
+                <button type="button" onclick="toggleShowFiles()" id="toggleFilesBtn" class="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                    📄 Show Files
+                </button>
+            </div>
+            <div class="mt-3 text-sm text-gray-400">
+                Selected: <span id="selectedFileCount" class="font-bold text-indigo-400">0</span> / <span id="totalFileCount">0</span> files
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 bg-gray-900/50">
+            <div id="fileTreeContainer" class="space-y-1"></div>
+        </div>
+        <div class="p-4 border-t border-gray-700 flex justify-end gap-3">
+            <button type="button" onclick="closeFileSelectionModal()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
+                Cancel
+            </button>
+            <button type="button" onclick="confirmFileSelection()" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+                Confirm Selection
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+const projectId = Number(document.getElementById('versionsPage').dataset.projectId);
+
+// Check if we should switch to deployment tab
+document.addEventListener('DOMContentLoaded', function() {
+    const savedTab = localStorage.getItem('versionsActiveTab');
+    if (savedTab === 'deployment' || window.location.hash === '#deployment') {
+        // Use Alpine.js to switch tab
+        const pageEl = document.getElementById('versionsPage');
+        if (pageEl && pageEl.__x) {
+            pageEl.__x.$data.activeTab = 'deployment';
+        }
+        localStorage.removeItem('versionsActiveTab');
+    }
+});
+let serverManifest = {};
+let localFiles = {};
+let comparisonDiff = null;
+
+// File selection modal state
+let allFiles = [];
+let selectedFiles = new Set();
+let showFilesInTree = false;
+let expandedFolders = new Set();
+const commonExcludes = ['venv', '.venv', 'env', '__pycache__', 'node_modules', '.git', '.svn', '.hg',
+                        '.vscode', '.idea', 'dist', 'build', '.pytest_cache', '.mypy_cache', 
+                        'coverage', '.coverage', '.DS_Store', '*.pyc', '*.pyo', '*.log', '*.sqlite', '*.db'];
+
+// Toggle handlers
+document.getElementById('shouldRunToggle')?.addEventListener('change', async function() {
+    await updateAppState(this.checked, document.getElementById('autoRestartToggle').checked);
+});
+
+document.getElementById('autoRestartToggle')?.addEventListener('change', async function() {
+    await updateAppState(document.getElementById('shouldRunToggle').checked, this.checked);
+});
+
+async function updateAppState(shouldRun, autoRestart) {
+    try {
+        const response = await fetch(`/api/app-state/${projectId}/set`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ should_run: shouldRun, auto_restart: autoRestart })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert('Update failed: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
+    }
+}
+
+async function getServerManifest() {
+    const btn = document.getElementById('getManifestBtn');
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+    
+    try {
+        const response = await fetch(`/api/deployment/${projectId}/manifest`);
+        const data = await response.json();
+        
+        if (data.success) {
+            serverManifest = data.manifest;
+            document.getElementById('manifestFileCount').textContent = data.file_count;
+            document.getElementById('manifestStatus').classList.remove('hidden');
+            updateCompareButton();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Get Manifest';
+    }
+}
+
+// File selection handler
+document.getElementById('folderInput')?.addEventListener('change', async function(e) {
+    const files = e.target.files;
+    allFiles = Array.from(files);
+    selectedFiles.clear();
+    localFiles = {};
+    
+    const statusDiv = document.getElementById('localFilesStatus');
+    statusDiv.classList.remove('hidden');
+    document.getElementById('localFileCount').textContent = 'Processing...';
+    document.getElementById('reviewFilesBtn').classList.remove('hidden');
+    
+    for (let i = 0; i < allFiles.length; i++) {
+        const path = allFiles[i].webkitRelativePath;
+        if (!shouldIgnore(path)) {
+            selectedFiles.add(i);
+        }
+    }
+    
+    await processSelectedFiles();
+});
+
+async function processSelectedFiles() {
+    localFiles = {};
+    document.getElementById('localFileCount').textContent = 'Processing...';
+    
+    for (const idx of selectedFiles) {
+        const file = allFiles[idx];
+        const path = file.webkitRelativePath;
+        
+        const parts = path.split('/');
+        parts.shift();
+        const relativePath = parts.join('/');
+        
+        if (relativePath) {
+            let hash;
+            try {
+                hash = await calculateFileHash(file);
+            } catch (error) {
+                console.error('Hash calculation failed:', error);
+                alert('File hash calculation failed: ' + (error?.message || error));
+                document.getElementById('localFileCount').textContent = '0';
+                localFiles = {};
+                updateCompareButton();
+                return;
+            }
+            localFiles[relativePath] = {
+                hash: hash,
+                size: file.size,
+                file: file
+            };
+        }
+    }
+    
+    document.getElementById('localFileCount').textContent = Object.keys(localFiles).length;
+    updateCompareButton();
+}
+
+function openFileSelectionModal() {
+    if (allFiles.length === 0) {
+        alert('Please select a folder first');
+        return;
+    }
+    buildFileTree();
+    document.getElementById('fileSelectionModal').classList.remove('hidden');
+}
+
+function closeFileSelectionModal() {
+    document.getElementById('fileSelectionModal').classList.add('hidden');
+}
+
+async function confirmFileSelection() {
+    closeFileSelectionModal();
+    await processSelectedFiles();
+}
+
+function selectAllFiles() {
+    selectedFiles.clear();
+    allFiles.forEach((file, idx) => {
+        if (!shouldIgnore(file.webkitRelativePath)) {
+            selectedFiles.add(idx);
+        }
+    });
+    updateTreeCheckboxes();
+    updateSelectedCount();
+}
+
+function deselectAllFiles() {
+    selectedFiles.clear();
+    updateTreeCheckboxes();
+    updateSelectedCount();
+}
+
+function excludeCommonFolders() {
+    allFiles.forEach((file, idx) => {
+        const path = file.webkitRelativePath;
+        const pathParts = path.split('/');
+        
+        const shouldExclude = pathParts.some(part => {
+            if (commonExcludes.includes(part)) return true;
+            for (const pattern of commonExcludes) {
+                if (pattern.startsWith('*.') && part.endsWith(pattern.slice(1))) {
+                    return true;
+                }
+            }
+            return false;
+        });
+        
+        if (shouldExclude) {
+            selectedFiles.delete(idx);
+        }
+    });
+    updateTreeCheckboxes();
+    updateSelectedCount();
+}
+
+function toggleShowFiles() {
+    showFilesInTree = !showFilesInTree;
+    const btn = document.getElementById('toggleFilesBtn');
+    if (showFilesInTree) {
+        btn.textContent = '📁 Hide Files';
+        btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+        btn.classList.add('bg-green-600', 'hover:bg-green-700');
+    } else {
+        btn.textContent = '📄 Show Files';
+        btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+        btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+    }
+    buildFileTree();
+}
+
+function updateSelectedCount() {
+    document.getElementById('selectedFileCount').textContent = selectedFiles.size;
+    document.getElementById('totalFileCount').textContent = allFiles.length;
+}
+
+function buildFileTree() {
+    const container = document.getElementById('fileTreeContainer');
+    container.innerHTML = '';
+    
+    const tree = {};
+    allFiles.forEach((file, idx) => {
+        const path = file.webkitRelativePath;
+        const parts = path.split('/');
+        parts.shift();
+        
+        let current = tree;
+        parts.forEach((part, i) => {
+            if (!current[part]) {
+                current[part] = {
+                    isFile: i === parts.length - 1,
+                    children: {},
+                    indices: []
+                };
+            }
+            if (i === parts.length - 1) {
+                current[part].indices.push(idx);
+            } else {
+                current = current[part].children;
+            }
+        });
+    });
+    
+    renderTree(tree, container, '');
+    updateSelectedCount();
+}
+
+function renderTree(node, container, prefix) {
+    const entries = Object.entries(node).sort((a, b) => {
+        if (!a[1].isFile && b[1].isFile) return -1;
+        if (a[1].isFile && !b[1].isFile) return 1;
+        return a[0].localeCompare(b[0]);
+    });
+    
+    entries.forEach(([name, data]) => {
+        if (data.isFile && !showFilesInTree) return;
+        
+        const div = document.createElement('div');
+        div.className = 'flex items-center gap-2 py-1.5 px-3 hover:bg-gray-700/50 rounded-lg transition-colors';
+        div.style.paddingLeft = `${prefix.split('/').length * 16}px`;
+        
+        if (!data.isFile && Object.keys(data.children).length > 0) {
+            const expandBtn = document.createElement('button');
+            expandBtn.type = 'button';
+            expandBtn.className = 'text-gray-400 hover:text-white flex-shrink-0 w-4 text-xs';
+            const folderPath = prefix + name;
+            const isExpanded = expandedFolders.has(folderPath);
+            expandBtn.textContent = isExpanded ? '▼' : '▶';
+            
+            expandBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (expandedFolders.has(folderPath)) {
+                    expandedFolders.delete(folderPath);
+                } else {
+                    expandedFolders.add(folderPath);
+                }
+                buildFileTree();
+            });
+            
+            div.appendChild(expandBtn);
+        } else {
+            const spacer = document.createElement('span');
+            spacer.className = 'w-4';
+            div.appendChild(spacer);
+        }
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'h-4 w-4 rounded bg-gray-700 border-gray-600 text-indigo-600 focus:ring-indigo-500';
+        checkbox.dataset.path = prefix + name;
+        
+        if (data.isFile) {
+            checkbox.dataset.indices = JSON.stringify(data.indices);
+            checkbox.checked = data.indices.every(idx => selectedFiles.has(idx));
+            
+            checkbox.addEventListener('change', function() {
+                const indices = JSON.parse(this.dataset.indices);
+                if (this.checked) {
+                    indices.forEach(idx => selectedFiles.add(idx));
+                } else {
+                    indices.forEach(idx => selectedFiles.delete(idx));
+                }
+                updateSelectedCount();
+            });
+        } else {
+            const allIndices = collectIndices(data.children);
+            if (data.indices) allIndices.push(...data.indices);
+            checkbox.dataset.indices = JSON.stringify(allIndices);
+            checkbox.checked = allIndices.length > 0 && allIndices.every(idx => selectedFiles.has(idx));
+            checkbox.indeterminate = !checkbox.checked && allIndices.some(idx => selectedFiles.has(idx));
+            
+            checkbox.addEventListener('change', function() {
+                const indices = JSON.parse(this.dataset.indices);
+                if (this.checked) {
+                    indices.forEach(idx => selectedFiles.add(idx));
+                } else {
+                    indices.forEach(idx => selectedFiles.delete(idx));
+                }
+                updateTreeCheckboxes();
+                updateSelectedCount();
+            });
+        }
+        
+        div.appendChild(checkbox);
+        
+        const icon = document.createElement('span');
+        icon.className = 'text-base';
+        if (!data.isFile) {
+            icon.textContent = expandedFolders.has(prefix + name) ? '📂' : '📁';
+        } else {
+            icon.textContent = '📄';
+        }
+        div.appendChild(icon);
+        
+        const label = document.createElement('span');
+        label.className = data.isFile ? 'text-gray-300 text-sm' : 'text-white font-medium text-sm';
+        label.textContent = name;
+        div.appendChild(label);
+        
+        container.appendChild(div);
+        
+        if (!data.isFile && expandedFolders.has(prefix + name)) {
+            renderTree(data.children, container, prefix + name + '/');
+        }
+    });
+}
+
+function collectIndices(node) {
+    let indices = [];
+    Object.values(node).forEach(data => {
+        if (data.indices) indices.push(...data.indices);
+        if (data.children) indices.push(...collectIndices(data.children));
+    });
+    return indices;
+}
+
+function updateTreeCheckboxes() {
+    const checkboxes = document.querySelectorAll('#fileTreeContainer input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        const indices = JSON.parse(checkbox.dataset.indices || '[]');
+        if (indices.length > 0) {
+            checkbox.checked = indices.every(idx => selectedFiles.has(idx));
+            checkbox.indeterminate = !checkbox.checked && indices.some(idx => selectedFiles.has(idx));
+        }
+    });
+}
+
+function shouldIgnore(path) {
+    const ignorePatterns = [
+        '__pycache__', '.git', '.svn', '.hg',
+        'venv', '.venv', 'env', 'node_modules',
+        '.idea', '.vscode', '.DS_Store',
+        '.pyc', '.pyo', '.log', '.sqlite', '.db'
+    ];
+    
+    for (const pattern of ignorePatterns) {
+        if (path.includes('/' + pattern + '/') || path.includes('/' + pattern) || 
+            path.endsWith(pattern) || path.includes(pattern + '/')) {
+            return true;
+        }
+    }
+    return false;
+}
+
+async function calculateFileHash(file) {
+    const buffer = await file.arrayBuffer();
+    const subtle = globalThis.crypto && globalThis.crypto.subtle;
+    if (subtle && typeof subtle.digest === 'function') {
+        const hashBuffer = await subtle.digest('SHA-256', buffer);
+        return arrayBufferToHex(hashBuffer);
+    }
+    return sha256ArrayBufferToHex(buffer);
+}
+
+function arrayBufferToHex(arrayBuffer) {
+    const bytes = new Uint8Array(arrayBuffer);
+    let hex = '';
+    for (let i = 0; i < bytes.length; i++) {
+        hex += bytes[i].toString(16).padStart(2, '0');
+    }
+    return hex;
+}
+
+function sha256ArrayBufferToHex(arrayBuffer) {
+    const K = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+    ];
+ 
+    let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a;
+    let h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+ 
+    const bytes = new Uint8Array(arrayBuffer);
+    const l = bytes.length;
+    const totalLen = (((l + 9 + 63) >> 6) << 6);
+    const padded = new Uint8Array(totalLen);
+    padded.set(bytes);
+    padded[l] = 0x80;
+ 
+    const bitLenHi = Math.floor((l * 8) / 0x100000000);
+    const bitLenLo = (l * 8) >>> 0;
+    const view = new DataView(padded.buffer);
+    view.setUint32(totalLen - 8, bitLenHi);
+    view.setUint32(totalLen - 4, bitLenLo);
+ 
+    const w = new Uint32Array(64);
+    for (let i = 0; i < totalLen; i += 64) {
+        for (let t = 0; t < 16; t++) w[t] = view.getUint32(i + (t * 4));
+        for (let t = 16; t < 64; t++) {
+            const s0 = rotr(w[t - 15], 7) ^ rotr(w[t - 15], 18) ^ (w[t - 15] >>> 3);
+            const s1 = rotr(w[t - 2], 17) ^ rotr(w[t - 2], 19) ^ (w[t - 2] >>> 10);
+            w[t] = (w[t - 16] + s0 + w[t - 7] + s1) >>> 0;
+        }
+ 
+        let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+ 
+        for (let t = 0; t < 64; t++) {
+            const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+            const ch = (e & f) ^ (~e & g);
+            const temp1 = (h + S1 + ch + K[t] + w[t]) >>> 0;
+            const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+            const maj = (a & b) ^ (a & c) ^ (b & c);
+            const temp2 = (S0 + maj) >>> 0;
+ 
+            h = g; g = f; f = e; e = (d + temp1) >>> 0;
+            d = c; c = b; b = a; a = (temp1 + temp2) >>> 0;
+        }
+ 
+        h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0;
+        h4 = (h4 + e) >>> 0; h5 = (h5 + f) >>> 0; h6 = (h6 + g) >>> 0; h7 = (h7 + h) >>> 0;
+    }
+ 
+    const out = new Uint8Array(32);
+    const outView = new DataView(out.buffer);
+    outView.setUint32(0, h0); outView.setUint32(4, h1); outView.setUint32(8, h2); outView.setUint32(12, h3);
+    outView.setUint32(16, h4); outView.setUint32(20, h5); outView.setUint32(24, h6); outView.setUint32(28, h7);
+ 
+    return arrayBufferToHex(out.buffer);
+}
+
+function rotr(x, n) { return (x >>> n) | (x << (32 - n)); }
+
+function updateCompareButton() {
+    const canCompare = Object.keys(serverManifest).length > 0 || Object.keys(localFiles).length > 0;
+    document.getElementById('compareBtn').disabled = !canCompare || Object.keys(localFiles).length === 0;
+}
+
+async function compareFiles() {
+    const btn = document.getElementById('compareBtn');
+    btn.disabled = true;
+    btn.textContent = 'Comparing...';
+    
+    try {
+        const localFilesForCompare = {};
+        for (const [path, info] of Object.entries(localFiles)) {
+            localFilesForCompare[path] = { hash: info.hash, size: info.size };
+        }
+        
+        const response = await fetch(`/api/deployment/${projectId}/compare`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ local_files: localFilesForCompare })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            comparisonDiff = data.diff;
+            displayComparison(data.diff);
+            document.getElementById('deployBtn').disabled = data.total_changes === 0;
+            document.getElementById('deployOptions').classList.toggle('hidden', data.total_changes === 0);
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Compare';
+    }
+}
+
+function displayComparison(diff) {
+    document.getElementById('comparisonResults').classList.remove('hidden');
+    
+    document.getElementById('addedCount').textContent = diff.added.length;
+    document.getElementById('modifiedCount').textContent = diff.modified.length;
+    document.getElementById('deletedCount').textContent = diff.deleted.length;
+    document.getElementById('unchangedCount').textContent = diff.unchanged_count;
+    
+    const filesList = document.getElementById('filesList');
+    let html = '';
+    
+    diff.added.forEach(path => {
+        html += `<div class="py-1 text-sm"><span class="text-green-400">+ ${path}</span></div>`;
+    });
+    
+    diff.modified.forEach(path => {
+        html += `<div class="py-1 text-sm"><span class="text-yellow-400">~ ${path}</span></div>`;
+    });
+    
+    diff.deleted.forEach(path => {
+        html += `<div class="py-1 text-sm"><span class="text-red-400">- ${path}</span></div>`;
+    });
+    
+    if (!html) {
+        html = '<div class="py-4 text-center text-gray-500">No changes</div>';
+    }
+    
+    filesList.innerHTML = html;
+}
+
+async function deployFiles() {
+    if (!comparisonDiff) {
+        alert('Please compare files first');
+        return;
+    }
+    
+    const totalChanges = comparisonDiff.added.length + comparisonDiff.modified.length + comparisonDiff.deleted.length;
+    if (totalChanges === 0) {
+        alert('No changes to deploy');
+        return;
+    }
+    
+    if (!confirm(`${totalChanges} file changes will be deployed. Do you want to continue?`)) {
+        return;
+    }
+    
+    const btn = document.getElementById('deployBtn');
+    btn.disabled = true;
+    btn.textContent = 'Deploying...';
+    
+    try {
+        const package_ = {};
+        const filesToDeploy = [...comparisonDiff.added, ...comparisonDiff.modified];
+        
+        for (const path of filesToDeploy) {
+            const fileInfo = localFiles[path];
+            if (fileInfo && fileInfo.file) {
+                const content = await fileToBase64(fileInfo.file);
+                package_[path] = {
+                    content: content,
+                    size: fileInfo.size,
+                    hash: fileInfo.hash
+                };
+            }
+        }
+        
+        const response = await fetch(`/api/deployment/${projectId}/deploy`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                package: package_,
+                deleted_files: comparisonDiff.deleted,
+                description: document.getElementById('deployDescription').value || null,
+                restart_after: document.getElementById('restartAfterDeploy').checked
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            let message = `Deployment successful!\n- ${data.applied} files updated\n- ${data.deleted} files deleted`;
+            if (data.restarted) {
+                message += '\n- Application restarted';
+            }
+            alert(message);
+            location.reload();
+        } else {
+            alert('Deployment failed: ' + (data.errors?.join(', ') || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Deploy';
+    }
+}
+
+async function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const base64 = reader.result.split(',')[1];
+            resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+</script>
 {% endblock %}

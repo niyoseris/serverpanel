@@ -43,6 +43,9 @@ def extract_missing_modules(error_log_content):
     # Pattern: ModuleNotFoundError: No module named 'xxx'
     pattern = r"ModuleNotFoundError: No module named ['\"]([^'\"]+)['\"]"
     matches = re.findall(pattern, error_log_content)
+    if not matches:
+        pattern_unquoted = r"ModuleNotFoundError: No module named ([^\s]+)"
+        matches = re.findall(pattern_unquoted, error_log_content)
     
     for match in matches:
         # Get the top-level module name
@@ -60,6 +63,57 @@ def extract_missing_modules(error_log_content):
             missing_modules.append(module_name)
     
     return missing_modules
+
+def infer_venv_path_from_log(project_path, log_content):
+    venv_names = r"(?:venv|\.venv|env)"
+    patterns = [
+        rf"(/[^\s]+?/{venv_names})/lib/python[0-9.]+/site-packages/",
+        rf"(/[^\s]+?/{venv_names})/lib/python[0-9.]+/",
+        rf"(/[^\s]+?/{venv_names})/bin/python",
+    ]
+
+    for pattern in patterns:
+        matches = re.findall(pattern, log_content)
+        for match in matches:
+            candidate = match.rstrip('/')
+            if os.path.exists(os.path.join(candidate, 'bin', 'pip')):
+                return candidate
+
+    venv_candidates = ['venv', '.venv', 'env']
+    for candidate in venv_candidates:
+        candidate_path = os.path.join(project_path, candidate)
+        if os.path.exists(os.path.join(candidate_path, 'bin', 'pip')):
+            return candidate_path
+
+    return None
+
+def is_local_module(project_path, module_name):
+    if not module_name:
+        return False
+    if os.path.exists(os.path.join(project_path, f"{module_name}.py")):
+        return True
+    if os.path.isdir(os.path.join(project_path, module_name)):
+        return True
+    return False
+
+def install_requirements_if_present(venv_pip, project_path):
+    requirements_file = os.path.join(project_path, 'requirements.txt')
+    if not os.path.exists(requirements_file):
+        return True, "requirements.txt not present"
+
+    try:
+        result = subprocess.run(
+            [venv_pip, 'install', '-r', 'requirements.txt'],
+            cwd=project_path,
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        if result.returncode == 0:
+            return True, "requirements.txt installed"
+        return False, result.stderr or result.stdout or "pip install -r requirements.txt failed"
+    except Exception as e:
+        return False, str(e)
 
 def get_pip_package_name(module_name):
     """
@@ -90,8 +144,12 @@ def install_missing_packages(venv_path, missing_modules):
     
     installed = []
     failed = []
+    skipped = []
     
     for module in missing_modules:
+        if is_local_module(os.path.dirname(venv_path), module) or is_local_module(os.path.dirname(os.path.dirname(venv_path)), module):
+            skipped.append(module)
+            continue
         package_name = get_pip_package_name(module)
         print(f"[DEPENDENCY-FIX] Installing {package_name} (for module '{module}')...")
         
@@ -131,10 +189,12 @@ def install_missing_packages(venv_path, missing_modules):
             print(f"[DEPENDENCY-FIX] ✗ Error installing {package_name}: {e}")
             failed.append(package_name)
     
+    if skipped:
+        print(f"[DEPENDENCY-FIX] Skipped local modules (not pip-installable): {skipped}")
+
     if failed:
         return False, f"Installed {len(installed)} packages, {len(failed)} failed: {failed}", installed
-    else:
-        return True, f"Successfully installed {len(installed)} packages: {installed}", installed
+    return True, f"Successfully installed {len(installed)} packages: {installed}", installed
 
 def auto_fix_dependencies(project_path, error_log_path):
     """
@@ -161,23 +221,23 @@ def auto_fix_dependencies(project_path, error_log_path):
     
     print(f"[DEPENDENCY-FIX] Detected missing modules: {missing_modules}")
     
-    # Find venv
-    venv_candidates = ['venv', '.venv', 'env']
-    venv_path = None
-    
-    for candidate in venv_candidates:
-        candidate_path = os.path.join(project_path, candidate)
-        if os.path.exists(candidate_path):
-            venv_path = candidate_path
-            break
+    venv_path = infer_venv_path_from_log(project_path, log_content)
     
     if not venv_path:
         return False, "Virtual environment not found", []
     
     print(f"[DEPENDENCY-FIX] Using venv: {venv_path}")
+
+    venv_pip = os.path.join(venv_path, 'bin', 'pip')
+    req_ok, req_msg = install_requirements_if_present(venv_pip, project_path)
+    if not req_ok:
+        print(f"[DEPENDENCY-FIX] requirements.txt install failed: {req_msg}")
     
     # Install missing packages
     success, message, installed = install_missing_packages(venv_path, missing_modules)
+
+    if req_msg:
+        message = f"{req_msg}; {message}"
     
     if success:
         print(f"[DEPENDENCY-FIX] ✓ Auto-fix complete!")

@@ -7,6 +7,7 @@ import os
 import json
 import signal
 import shutil
+import hashlib
 import tempfile
 import zipfile
 import time
@@ -351,7 +352,17 @@ def start_project(id):
             # Wait a bit for error log to be written
             time.sleep(1)
             
-            error_log_path = os.path.join(project.path, f"{project.name}.err.log")
+            error_log_candidates = [
+                os.path.join(project.path, f"{project.name}.err.log"),
+                f"/var/log/{project.name}.err.log",
+            ]
+            error_log_path = None
+            for candidate in error_log_candidates:
+                if os.path.exists(candidate):
+                    error_log_path = candidate
+                    break
+            if not error_log_path:
+                error_log_path = error_log_candidates[0]
             
             # PRIORITY 1: Check for missing dependencies (with retry loop for chain dependencies)
             from app.utils.dependency_fix import auto_fix_dependencies
@@ -640,33 +651,138 @@ def upload_project():
             
             # Create project directory
             project_path = os.path.join(UPLOAD_FOLDER, secure_filename(project_name))
-            if os.path.exists(project_path):
-                shutil.rmtree(project_path)
-            os.makedirs(project_path)
             
-            # Save uploaded files maintaining structure
-            for file in files:
-                if file and file.filename:
-                    # Get relative path from the uploaded file
-                    filename = file.filename
-                    # Secure the filename but maintain directory structure
-                    filepath = os.path.join(project_path, filename)
-                    
-                    # Create directories if needed
-                    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                    
-                    # Save the file
-                    file.save(filepath)
+            if is_update and os.path.exists(project_path):
+                # INCREMENTAL UPDATE: Only upload changed files
+                from app.utils.deployment_manager import calculate_file_hash, should_ignore, IGNORE_PATTERNS
+                
+                # Calculate hashes of existing files
+                existing_files = {}
+                for root, dirs, filenames in os.walk(project_path):
+                    dirs[:] = [d for d in dirs if not should_ignore(root, d)]
+                    for fname in filenames:
+                        if should_ignore(root, fname):
+                            continue
+                        full_path = os.path.join(root, fname)
+                        rel_path = os.path.relpath(full_path, project_path)
+                        file_hash = calculate_file_hash(full_path)
+                        if file_hash:
+                            existing_files[rel_path] = file_hash
+                
+                # Process uploaded files and track changes
+                uploaded_files = set()
+                files_added = 0
+                files_modified = 0
+                files_unchanged = 0
+                
+                for file in files:
+                    if file and file.filename:
+                        filename = file.filename
+                        uploaded_files.add(filename)
+                        filepath = os.path.join(project_path, filename)
+                        
+                        # Read file content to calculate hash
+                        file_content = file.read()
+                        new_hash = hashlib.sha256(file_content).hexdigest()
+                        file.seek(0)  # Reset file pointer
+                        
+                        # Check if file exists and compare hash
+                        if filename in existing_files:
+                            if existing_files[filename] != new_hash:
+                                # File changed - update it
+                                os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                                with open(filepath, 'wb') as f:
+                                    f.write(file_content)
+                                files_modified += 1
+                            else:
+                                files_unchanged += 1
+                        else:
+                            # New file - add it
+                            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                            with open(filepath, 'wb') as f:
+                                f.write(file_content)
+                            files_added += 1
+                
+                # Delete files that are no longer in upload (except ignored patterns)
+                files_deleted = 0
+                for rel_path in existing_files:
+                    if rel_path not in uploaded_files:
+                        full_path = os.path.join(project_path, rel_path)
+                        if os.path.exists(full_path):
+                            os.remove(full_path)
+                            files_deleted += 1
+                            # Clean up empty directories
+                            dir_path = os.path.dirname(full_path)
+                            while dir_path != project_path:
+                                if os.path.isdir(dir_path) and not os.listdir(dir_path):
+                                    os.rmdir(dir_path)
+                                    dir_path = os.path.dirname(dir_path)
+                                else:
+                                    break
+                
+                flash(f'📊 Incremental update: {files_added} added, {files_modified} modified, {files_deleted} deleted, {files_unchanged} unchanged', 'info')
+                
+                # Track dependency file changes for incremental update
+                package_json_changed = False
+                requirements_txt_changed = False
+                
+                # Check if package.json was modified
+                package_json_path = os.path.join(project_path, 'package.json')
+                if os.path.exists(package_json_path):
+                    current_hash = calculate_file_hash(package_json_path)
+                    old_hash = existing_files.get('package.json')
+                    if old_hash and current_hash and old_hash != current_hash:
+                        package_json_changed = True
+                        flash('📦 package.json changed - will update packages incrementally', 'info')
+                    elif not old_hash and current_hash:
+                        # New package.json added
+                        package_json_changed = True
+                
+                # Check if requirements.txt was modified
+                requirements_path = os.path.join(project_path, 'requirements.txt')
+                if os.path.exists(requirements_path):
+                    current_hash = calculate_file_hash(requirements_path)
+                    old_hash = existing_files.get('requirements.txt')
+                    if old_hash and current_hash and old_hash != current_hash:
+                        requirements_txt_changed = True
+                        flash('📦 requirements.txt changed - will update packages incrementally', 'info')
+                    elif not old_hash and current_hash:
+                        requirements_txt_changed = True
+            else:
+                # NEW PROJECT: Create fresh directory
+                if os.path.exists(project_path):
+                    shutil.rmtree(project_path)
+                os.makedirs(project_path)
+                
+                # Save uploaded files maintaining structure
+                for file in files:
+                    if file and file.filename:
+                        filename = file.filename
+                        filepath = os.path.join(project_path, filename)
+                        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                        file.save(filepath)
             
             # Smart path detection: If upload created a single subdirectory containing the actual project, use it
-            subdirs = [d for d in os.listdir(project_path) if os.path.isdir(os.path.join(project_path, d)) and not d.startswith('.')]
-            if len(subdirs) == 1:
-                # Check if this subdirectory contains Python files or common project files
-                subdir_path = os.path.join(project_path, subdirs[0])
-                has_python = any(f.endswith('.py') for f in os.listdir(subdir_path) if os.path.isfile(os.path.join(subdir_path, f)))
-                if has_python:
-                    print(f"[UPLOAD] Detected nested project structure, using subdirectory: {subdirs[0]}")
-                    project_path = subdir_path
+            # But first check if project files exist at root level (don't go into subdirs unnecessarily)
+            root_has_package_json = os.path.exists(os.path.join(project_path, 'package.json'))
+            root_has_python = any(f.endswith('.py') for f in os.listdir(project_path) if os.path.isfile(os.path.join(project_path, f)))
+            root_has_requirements = os.path.exists(os.path.join(project_path, 'requirements.txt'))
+            
+            # Only check subdirs if root doesn't have project files
+            if not root_has_package_json and not root_has_python and not root_has_requirements:
+                subdirs = [d for d in os.listdir(project_path) if os.path.isdir(os.path.join(project_path, d)) and not d.startswith('.')]
+                if len(subdirs) == 1:
+                    subdir_path = os.path.join(project_path, subdirs[0])
+                    subdir_files = os.listdir(subdir_path)
+                    has_python = any(f.endswith('.py') for f in subdir_files if os.path.isfile(os.path.join(subdir_path, f)))
+                    has_package_json = 'package.json' in subdir_files
+                    has_requirements = 'requirements.txt' in subdir_files
+                    
+                    if has_python or has_package_json or has_requirements:
+                        print(f"[UPLOAD] Detected nested project structure, using subdirectory: {subdirs[0]}")
+                        project_path = subdir_path
+            else:
+                print(f"[UPLOAD] Project files found at root level, using root path")
             
             # Create or update project in database
             from app.utils.system import detect_entry_point, auto_setup_project
@@ -700,8 +816,29 @@ def upload_project():
             
             # AUTO-SETUP: Prepare project environment
             flash('🔧 Setting up project environment...', 'info')
+            
+            # Get dependency change flags (set during incremental update, default False for new projects)
+            pkg_json_changed = locals().get('package_json_changed', False)
+            req_txt_changed = locals().get('requirements_txt_changed', False)
+            
+            # Progress messages list
+            setup_messages = []
+            def progress_callback(step, msg):
+                setup_messages.append(msg)
+            
             try:
-                success, message = auto_setup_project(project_path, project_name)
+                success, message = auto_setup_project(
+                    project_path, 
+                    project_name,
+                    package_json_changed=pkg_json_changed,
+                    requirements_txt_changed=req_txt_changed,
+                    progress_callback=progress_callback
+                )
+                
+                # Show progress messages
+                for msg in setup_messages:
+                    flash(f'📦 {msg}', 'info')
+                
                 if success:
                     flash(f'✓ {message}', 'success')
                 else:
@@ -749,14 +886,16 @@ def upload_project():
 @main.route('/projects/<int:id>/versions')
 @login_required
 def project_versions(id):
-    """Proje versiyonlarını listeler"""
+    """Project versions and deployment page"""
     project = Project.query.get_or_404(id)
     from app.utils.version_manager import VersionManager
+    from app.utils.deployment_manager import get_or_create_app_state, DeploymentManager
+    
     vm = VersionManager()
     
     versions = vm.get_project_versions(project.id)
     
-    # Her versiyon için boyut bilgisini ekle
+    # Add size info for each version
     version_data = []
     for version in versions:
         size = vm.get_version_size(version.id)
@@ -766,7 +905,16 @@ def project_versions(id):
             'size_mb': round(size_mb, 2)
         })
     
-    return render_template('project_versions.html', project=project, version_data=version_data)
+    # Get deployment data
+    app_state = get_or_create_app_state(id)
+    dm = DeploymentManager(id)
+    deployment_history = dm.get_deployment_history(limit=10)
+    
+    return render_template('project_versions.html', 
+                          project=project, 
+                          version_data=version_data,
+                          app_state=app_state,
+                          deployment_history=deployment_history)
 
 @main.route('/projects/<int:id>/versions/<int:version_id>/restore', methods=['POST'])
 @login_required
@@ -982,6 +1130,9 @@ def kill_process(pid):
 @login_required
 def execute_command():
     command = request.form.get('command', '')
+    
+    # Remove Windows carriage returns for multiline commands
+    command = command.replace('\r\n', '\n').replace('\r', '\n')
     
     if not command:
         return jsonify({'success': False, 'error': 'No command provided'})
@@ -1221,6 +1372,483 @@ def get_system_logs():
 @login_required
 def settings():
     return render_template('settings.html')
+
+# ============== Migration Management ==============
+
+@main.route('/api/migrations')
+@login_required
+def get_migrations():
+    """Mevcut migration dosyalarını listele"""
+    import glob
+    import importlib.util
+    
+    project_dir = os.path.dirname(os.path.dirname(__file__))
+    migration_files = glob.glob(os.path.join(project_dir, 'migrate_*.py'))
+    
+    migrations = []
+    for filepath in sorted(migration_files):
+        filename = os.path.basename(filepath)
+        name = filename.replace('migrate_', '').replace('.py', '').replace('_', ' ').title()
+        
+        # Dosya içeriğinden açıklama al
+        description = ""
+        try:
+            with open(filepath, 'r') as f:
+                content = f.read()
+                # Docstring'i bul
+                if '"""' in content:
+                    start = content.find('"""') + 3
+                    end = content.find('"""', start)
+                    if end > start:
+                        description = content[start:end].strip().split('\n')[0]
+        except:
+            pass
+        
+        migrations.append({
+            'filename': filename,
+            'name': name,
+            'description': description or f'{name} migration',
+            'path': filepath
+        })
+    
+    return jsonify({'success': True, 'migrations': migrations})
+
+@main.route('/api/migrations/run', methods=['POST'])
+@login_required
+def run_migration():
+    """Seçilen migration'ı çalıştır"""
+    import subprocess
+    import sys
+    
+    data = request.get_json() or {}
+    filename = data.get('filename')
+    
+    if not filename:
+        return jsonify({'success': False, 'error': 'Migration dosyası belirtilmedi'})
+    
+    # Güvenlik kontrolü - sadece migrate_ ile başlayan dosyalar
+    if not filename.startswith('migrate_') or not filename.endswith('.py'):
+        return jsonify({'success': False, 'error': 'Geçersiz migration dosyası'})
+    
+    project_dir = os.path.dirname(os.path.dirname(__file__))
+    filepath = os.path.join(project_dir, filename)
+    
+    if not os.path.exists(filepath):
+        return jsonify({'success': False, 'error': 'Migration dosyası bulunamadı'})
+    
+    try:
+        # Migration'ı subprocess olarak çalıştır
+        result = subprocess.run(
+            [sys.executable, filepath],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=project_dir
+        )
+        
+        output = result.stdout + result.stderr
+        success = result.returncode == 0
+        
+        return jsonify({
+            'success': success,
+            'output': output,
+            'returncode': result.returncode
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({'success': False, 'error': 'Migration zaman aşımına uğradı (60s)'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@main.route('/api/migrations/run-all', methods=['POST'])
+@login_required
+def run_all_migrations():
+    """Tüm migration'ları sırayla çalıştır"""
+    import subprocess
+    import sys
+    import glob
+    
+    project_dir = os.path.dirname(os.path.dirname(__file__))
+    migration_files = sorted(glob.glob(os.path.join(project_dir, 'migrate_*.py')))
+    
+    results = []
+    all_success = True
+    
+    for filepath in migration_files:
+        filename = os.path.basename(filepath)
+        try:
+            result = subprocess.run(
+                [sys.executable, filepath],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                cwd=project_dir
+            )
+            
+            success = result.returncode == 0
+            if not success:
+                all_success = False
+            
+            results.append({
+                'filename': filename,
+                'success': success,
+                'output': result.stdout + result.stderr
+            })
+        except Exception as e:
+            all_success = False
+            results.append({
+                'filename': filename,
+                'success': False,
+                'output': str(e)
+            })
+    
+    return jsonify({
+        'success': all_success,
+        'results': results
+    })
+
+@main.route('/api/database/status')
+@login_required
+def database_status():
+    """Veritabanı durumunu kontrol et"""
+    from sqlalchemy import inspect
+    
+    try:
+        inspector = inspect(db.engine)
+        tables = inspector.get_table_names()
+        
+        table_info = []
+        for table in tables:
+            columns = inspector.get_columns(table)
+            row_count = db.session.execute(db.text(f'SELECT COUNT(*) FROM {table}')).scalar()
+            table_info.append({
+                'name': table,
+                'columns': len(columns),
+                'rows': row_count
+            })
+        
+        return jsonify({
+            'success': True,
+            'tables': table_info,
+            'total_tables': len(tables)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@main.route('/api/database/init', methods=['POST'])
+@login_required
+def init_database():
+    """Veritabanını başlat (eksik tabloları oluştur)"""
+    try:
+        db.create_all()
+        return jsonify({'success': True, 'message': 'Veritabanı başarıyla başlatıldı'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+# ============== Project-specific Migration Management ==============
+
+@main.route('/api/project/<int:id>/migrations')
+@login_required
+def get_project_migrations(id):
+    """Proje içindeki migration dosyalarını listele"""
+    import glob
+    
+    project = Project.query.get_or_404(id)
+    
+    if not project.path or not os.path.exists(project.path):
+        return jsonify({'success': False, 'error': 'Proje dizini bulunamadı'})
+    
+    # migrate_*.py ve migrations/ klasörünü ara
+    migration_files = glob.glob(os.path.join(project.path, 'migrate_*.py'))
+    migration_files += glob.glob(os.path.join(project.path, 'migrations/*.py'))
+    
+    # Flask-Migrate / Alembic kontrolü
+    has_flask_migrate = os.path.exists(os.path.join(project.path, 'migrations', 'env.py'))
+    
+    # Django migrations kontrolü
+    django_migrations = []
+    for root, dirs, files in os.walk(project.path):
+        if 'migrations' in dirs and os.path.basename(root) != 'migrations':
+            app_name = os.path.basename(root)
+            mig_dir = os.path.join(root, 'migrations')
+            mig_files = glob.glob(os.path.join(mig_dir, '*.py'))
+            for f in mig_files:
+                if not f.endswith('__init__.py'):
+                    django_migrations.append(f)
+    
+    migrations = []
+    
+    # Standalone migration dosyaları
+    for filepath in sorted(set(migration_files)):
+        if '__pycache__' in filepath or filepath.endswith('__init__.py'):
+            continue
+        filename = os.path.basename(filepath)
+        rel_path = os.path.relpath(filepath, project.path)
+        name = filename.replace('migrate_', '').replace('.py', '').replace('_', ' ').title()
+        
+        description = ""
+        try:
+            with open(filepath, 'r') as f:
+                content = f.read(500)
+                if '"""' in content:
+                    start = content.find('"""') + 3
+                    end = content.find('"""', start)
+                    if end > start:
+                        description = content[start:end].strip().split('\n')[0]
+        except:
+            pass
+        
+        migrations.append({
+            'filename': filename,
+            'rel_path': rel_path,
+            'name': name,
+            'description': description or f'{name} migration',
+            'type': 'standalone'
+        })
+    
+    # Django migrations
+    for filepath in sorted(django_migrations):
+        if '__pycache__' in filepath:
+            continue
+        filename = os.path.basename(filepath)
+        rel_path = os.path.relpath(filepath, project.path)
+        parts = rel_path.split(os.sep)
+        app_name = parts[0] if len(parts) > 2 else 'app'
+        
+        migrations.append({
+            'filename': filename,
+            'rel_path': rel_path,
+            'name': f'{app_name}: {filename.replace(".py", "")}',
+            'description': f'Django migration for {app_name}',
+            'type': 'django'
+        })
+    
+    return jsonify({
+        'success': True,
+        'migrations': migrations,
+        'has_flask_migrate': has_flask_migrate,
+        'project_type': project.project_type
+    })
+
+@main.route('/api/project/<int:id>/migrations/run', methods=['POST'])
+@login_required
+def run_project_migration(id):
+    """Proje içindeki migration'ı çalıştır"""
+    import subprocess
+    import sys
+    
+    project = Project.query.get_or_404(id)
+    data = request.get_json() or {}
+    rel_path = data.get('rel_path')
+    
+    if not project.path or not os.path.exists(project.path):
+        return jsonify({'success': False, 'error': 'Proje dizini bulunamadı'})
+    
+    if not rel_path:
+        return jsonify({'success': False, 'error': 'Migration dosyası belirtilmedi'})
+    
+    # Güvenlik: path traversal engelle
+    filepath = os.path.normpath(os.path.join(project.path, rel_path))
+    if not filepath.startswith(os.path.normpath(project.path)):
+        return jsonify({'success': False, 'error': 'Geçersiz dosya yolu'})
+    
+    if not os.path.exists(filepath):
+        return jsonify({'success': False, 'error': 'Migration dosyası bulunamadı'})
+    
+    try:
+        # Proje venv varsa kullan
+        venv_python = os.path.join(project.path, 'venv', 'bin', 'python')
+        if not os.path.exists(venv_python):
+            venv_python = os.path.join(project.path, '.venv', 'bin', 'python')
+        if not os.path.exists(venv_python):
+            venv_python = sys.executable
+        
+        result = subprocess.run(
+            [venv_python, filepath],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=project.path
+        )
+        
+        output = result.stdout + result.stderr
+        success = result.returncode == 0
+        
+        return jsonify({
+            'success': success,
+            'output': output,
+            'returncode': result.returncode
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({'success': False, 'error': 'Migration zaman aşımına uğradı (120s)'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@main.route('/api/project/<int:id>/migrations/flask-migrate', methods=['POST'])
+@login_required
+def run_flask_migrate(id):
+    """Flask-Migrate komutunu çalıştır (upgrade/downgrade)"""
+    import subprocess
+    import sys
+    
+    project = Project.query.get_or_404(id)
+    data = request.get_json() or {}
+    command = data.get('command', 'upgrade')  # upgrade, downgrade, migrate, init
+    
+    if command not in ['upgrade', 'downgrade', 'migrate', 'init', 'current', 'history']:
+        return jsonify({'success': False, 'error': 'Geçersiz komut'})
+    
+    if not project.path or not os.path.exists(project.path):
+        return jsonify({'success': False, 'error': 'Proje dizini bulunamadı'})
+    
+    try:
+        venv_python = os.path.join(project.path, 'venv', 'bin', 'python')
+        if not os.path.exists(venv_python):
+            venv_python = os.path.join(project.path, '.venv', 'bin', 'python')
+        if not os.path.exists(venv_python):
+            venv_python = sys.executable
+        
+        # Flask db komutu
+        cmd = [venv_python, '-m', 'flask', 'db', command]
+        
+        env = os.environ.copy()
+        env['FLASK_APP'] = project.entry_point.split(':')[0] if project.entry_point else 'app'
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=project.path,
+            env=env
+        )
+        
+        output = result.stdout + result.stderr
+        success = result.returncode == 0
+        
+        return jsonify({
+            'success': success,
+            'output': output,
+            'returncode': result.returncode
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({'success': False, 'error': 'Komut zaman aşımına uğradı (120s)'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@main.route('/api/project/<int:id>/migrations/django', methods=['POST'])
+@login_required
+def run_django_migrate(id):
+    """Django migrate komutunu çalıştır"""
+    import subprocess
+    import sys
+    
+    project = Project.query.get_or_404(id)
+    data = request.get_json() or {}
+    command = data.get('command', 'migrate')  # migrate, makemigrations, showmigrations
+    app_name = data.get('app', '')
+    
+    if command not in ['migrate', 'makemigrations', 'showmigrations']:
+        return jsonify({'success': False, 'error': 'Geçersiz komut'})
+    
+    if not project.path or not os.path.exists(project.path):
+        return jsonify({'success': False, 'error': 'Proje dizini bulunamadı'})
+    
+    try:
+        venv_python = os.path.join(project.path, 'venv', 'bin', 'python')
+        if not os.path.exists(venv_python):
+            venv_python = os.path.join(project.path, '.venv', 'bin', 'python')
+        if not os.path.exists(venv_python):
+            venv_python = sys.executable
+        
+        # manage.py bul
+        manage_py = os.path.join(project.path, 'manage.py')
+        if not os.path.exists(manage_py):
+            return jsonify({'success': False, 'error': 'manage.py bulunamadı'})
+        
+        cmd = [venv_python, manage_py, command]
+        if app_name:
+            cmd.append(app_name)
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=project.path
+        )
+        
+        output = result.stdout + result.stderr
+        success = result.returncode == 0
+        
+        return jsonify({
+            'success': success,
+            'output': output,
+            'returncode': result.returncode
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({'success': False, 'error': 'Komut zaman aşımına uğradı (120s)'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@main.route('/api/project/<int:id>/db/init', methods=['POST'])
+@login_required
+def init_project_database(id):
+    """Proje veritabanını başlat (db.create_all)"""
+    import subprocess
+    import sys
+    
+    project = Project.query.get_or_404(id)
+    
+    if not project.path or not os.path.exists(project.path):
+        return jsonify({'success': False, 'error': 'Proje dizini bulunamadı'})
+    
+    try:
+        venv_python = os.path.join(project.path, 'venv', 'bin', 'python')
+        if not os.path.exists(venv_python):
+            venv_python = os.path.join(project.path, '.venv', 'bin', 'python')
+        if not os.path.exists(venv_python):
+            venv_python = sys.executable
+        
+        # Inline script ile db.create_all() çalıştır
+        script = '''
+import sys
+sys.path.insert(0, ".")
+try:
+    from app import create_app, db
+    app = create_app()
+    with app.app_context():
+        db.create_all()
+        print("Veritabanı başarıyla başlatıldı!")
+except Exception as e:
+    try:
+        from app import app, db
+        with app.app_context():
+            db.create_all()
+            print("Veritabanı başarıyla başlatıldı!")
+    except:
+        print(f"Hata: {e}")
+        sys.exit(1)
+'''
+        
+        result = subprocess.run(
+            [venv_python, '-c', script],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=project.path
+        )
+        
+        output = result.stdout + result.stderr
+        success = result.returncode == 0
+        
+        return jsonify({
+            'success': success,
+            'output': output
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({'success': False, 'error': 'Komut zaman aşımına uğradı'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 @main.route('/change-password', methods=['POST'])
 @login_required

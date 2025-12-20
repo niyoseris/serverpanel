@@ -31,7 +31,7 @@
             <!-- Project Type Selection -->
             <div>
                 <label class="text-base font-medium text-gray-300 block mb-4">Project Type</label>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <label class="relative flex cursor-pointer rounded-xl border border-gray-700 bg-gray-800/50 p-4 shadow-sm focus:outline-none hover:border-indigo-500 hover:bg-gray-800 transition-all duration-200">
                         <input type="radio" name="project_type" value="flask" class="sr-only peer" checked>
                         <span class="flex flex-1">
@@ -58,6 +58,20 @@
                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
                         </svg>
                         <div class="absolute -inset-px rounded-xl border-2 border-transparent peer-checked:border-indigo-500 pointer-events-none"></div>
+                    </label>
+
+                    <label class="relative flex cursor-pointer rounded-xl border border-gray-700 bg-gray-800/50 p-4 shadow-sm focus:outline-none hover:border-green-500 hover:bg-gray-800 transition-all duration-200">
+                        <input type="radio" name="project_type" value="nodejs" class="sr-only peer">
+                        <span class="flex flex-1">
+                            <span class="flex flex-col">
+                                <span class="block text-sm font-medium text-gray-200 peer-checked:text-green-400">Node.js</span>
+                                <span class="mt-1 flex items-center text-xs text-gray-500">JavaScript Runtime</span>
+                            </span>
+                        </span>
+                        <svg class="h-5 w-5 text-green-500 hidden peer-checked:block" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        <div class="absolute -inset-px rounded-xl border-2 border-transparent peer-checked:border-green-500 pointer-events-none"></div>
                     </label>
                 </div>
             </div>
@@ -95,6 +109,16 @@
                         <button type="button" id="reviewFilesBtn" class="text-sm text-indigo-400 hover:text-indigo-300 font-medium">
                             Review & Select →
                         </button>
+                    </div>
+                    <div id="excludedNotification" class="hidden p-3 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
+                        <div class="flex items-start gap-2">
+                            <span class="text-yellow-400">⚡</span>
+                            <div class="flex-1">
+                                <p class="text-sm text-yellow-300 font-medium">Auto-excluded for faster upload:</p>
+                                <p id="excludedDetails" class="text-xs text-yellow-400/80 mt-1"></p>
+                                <p class="text-xs text-gray-500 mt-1">These will be automatically installed on the server.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -372,11 +396,23 @@ fileInput.addEventListener('change', function(e) {
     allFiles = Array.from(e.target.files);
     if (allFiles.length > 0) {
         fileList.classList.remove('hidden');
-        fileCount.textContent = allFiles.length;
         
-        // Initialize all files as selected
+        // Initialize all files as selected first
         selectedFiles.clear();
         allFiles.forEach((file, idx) => selectedFiles.add(idx));
+        
+        // Auto-exclude common folders (node_modules, venv, etc.)
+        const beforeExclude = selectedFiles.size;
+        autoExcludeCommonFolders();
+        const afterExclude = selectedFiles.size;
+        const excludedInfo = getExcludedInfo();
+        
+        fileCount.textContent = selectedFiles.size;
+        
+        // Show notification about excluded files
+        if (excludedInfo.count > 0) {
+            showExcludedNotification(excludedInfo);
+        }
     }
 });
 
@@ -437,9 +473,50 @@ const totalCount = document.getElementById('totalCount');
 let showFiles = false;
 let expandedFolders = new Set();
 
-// Common folders to exclude
-const commonExcludes = ['venv', 'env', '__pycache__', 'node_modules', '.git', '.vscode', '.idea', 
-                        'dist', 'build', '.pytest_cache', '.mypy_cache', 'coverage', '.coverage'];
+// Common folders to exclude (these will be auto-excluded and reinstalled on server)
+const commonExcludes = ['venv', '.venv', 'env', '__pycache__', 'node_modules', '.git', '.vscode', '.idea', 
+                        'dist', 'build', '.pytest_cache', '.mypy_cache', 'coverage', '.coverage', 
+                        '.next', '.nuxt', '.svelte-kit', 'vendor', '.cache', '.parcel-cache'];
+
+// Auto-exclude message
+function getExcludedInfo() {
+    let excludedCount = 0;
+    let excludedFolders = new Set();
+    allFiles.forEach((file, idx) => {
+        const path = file.webkitRelativePath || file.name;
+        const pathParts = path.split('/');
+        const excludedPart = pathParts.find(part => commonExcludes.includes(part));
+        if (excludedPart) {
+            excludedCount++;
+            excludedFolders.add(excludedPart);
+        }
+    });
+    return { count: excludedCount, folders: Array.from(excludedFolders) };
+}
+
+function autoExcludeCommonFolders() {
+    allFiles.forEach((file, idx) => {
+        const path = file.webkitRelativePath || file.name;
+        const pathParts = path.split('/');
+        const shouldExclude = pathParts.some(part => commonExcludes.includes(part));
+        
+        if (shouldExclude) {
+            selectedFiles.delete(idx);
+        } else {
+            selectedFiles.add(idx);
+        }
+    });
+}
+
+function showExcludedNotification(excludedInfo) {
+    const notification = document.getElementById('excludedNotification');
+    const details = document.getElementById('excludedDetails');
+    
+    const folderList = excludedInfo.folders.join(', ');
+    details.textContent = `${excludedInfo.count} files from: ${folderList}`;
+    
+    notification.classList.remove('hidden');
+}
 
 reviewFilesBtn.addEventListener('click', function() {
     buildFileTree();

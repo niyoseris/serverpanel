@@ -19,19 +19,19 @@
             <p class="text-gray-400">{{ project.path }}</p>
         </div>
         <a href="{{ url_for('main.project_details', id=project.id) }}" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
-            Proje Detayları
+            Project Details
         </a>
     </div>
 
     <!-- App State Settings -->
     <div class="glass-card rounded-2xl p-6">
-        <h2 class="text-xl font-semibold text-white mb-4">Uygulama Durumu Ayarları</h2>
+        <h2 class="text-xl font-semibold text-white mb-4">Application State Settings</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="p-4 bg-gray-800/50 rounded-xl">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h3 class="font-medium text-white">Restart Sonrası Başlat</h3>
-                        <p class="text-sm text-gray-400 mt-1">Server restart olduğunda bu uygulama otomatik başlatılsın mı?</p>
+                        <h3 class="font-medium text-white">Start After Restart</h3>
+                        <p class="text-sm text-gray-400 mt-1">Should this application auto-start when server restarts?</p>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" id="shouldRunToggle" class="sr-only peer" {{ 'checked' if app_state.should_run else '' }}>
@@ -43,7 +43,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <h3 class="font-medium text-white">Auto-Restart</h3>
-                        <p class="text-sm text-gray-400 mt-1">Crash durumunda otomatik yeniden başlat</p>
+                        <p class="text-sm text-gray-400 mt-1">Automatically restart on crash</p>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" id="autoRestartToggle" class="sr-only peer" {{ 'checked' if app_state.auto_restart else '' }}>
@@ -61,70 +61,70 @@
         <!-- Step 1: Get Server Manifest -->
         <div class="mb-6">
             <h3 class="text-lg font-medium text-white mb-3">1. Server Manifest</h3>
-            <p class="text-sm text-gray-400 mb-3">Server'daki dosyaların listesini ve hash'lerini alın.</p>
+            <p class="text-sm text-gray-400 mb-3">Get the list of files and their hashes from the server.</p>
             <button onclick="getServerManifest()" id="getManifestBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
-                Manifest Al
+                Get Manifest
             </button>
             <div id="manifestStatus" class="mt-3 hidden">
                 <div class="p-3 bg-gray-800/50 rounded-lg">
-                    <p class="text-sm text-gray-300"><span id="manifestFileCount">0</span> dosya bulundu</p>
+                    <p class="text-sm text-gray-300"><span id="manifestFileCount">0</span> files found</p>
                 </div>
             </div>
         </div>
 
         <!-- Step 2: Upload Files for Comparison -->
         <div class="mb-6">
-            <h3 class="text-lg font-medium text-white mb-3">2. Yerel Dosyaları Seç</h3>
-            <p class="text-sm text-gray-400 mb-3">Deploy etmek istediğiniz proje klasörünü seçin.</p>
+            <h3 class="text-lg font-medium text-white mb-3">2. Select Local Files</h3>
+            <p class="text-sm text-gray-400 mb-3">Select the project folder you want to deploy.</p>
             <input type="file" id="folderInput" webkitdirectory directory multiple class="hidden">
             <div class="flex gap-3 flex-wrap">
                 <button onclick="document.getElementById('folderInput').click()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
-                    Klasör Seç
+                    Select Folder
                 </button>
                 <button onclick="openFileSelectionModal()" id="reviewFilesBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors hidden">
-                    Dosyaları Düzenle
+                    Edit Files
                 </button>
             </div>
             <div id="localFilesStatus" class="mt-3 hidden">
                 <div class="p-3 bg-gray-800/50 rounded-lg flex items-center justify-between">
-                    <p class="text-sm text-gray-300"><span id="localFileCount">0</span> dosya seçildi</p>
-                    <button onclick="openFileSelectionModal()" class="text-sm text-indigo-400 hover:text-indigo-300">Dosyaları Gözden Geçir →</button>
+                    <p class="text-sm text-gray-300"><span id="localFileCount">0</span> files selected</p>
+                    <button onclick="openFileSelectionModal()" class="text-sm text-indigo-400 hover:text-indigo-300">Review Files →</button>
                 </div>
             </div>
         </div>
 
         <!-- Step 3: Compare & Deploy -->
         <div class="mb-6">
-            <h3 class="text-lg font-medium text-white mb-3">3. Karşılaştır ve Deploy Et</h3>
-            <p class="text-sm text-gray-400 mb-3">Değişiklikleri karşılaştırın ve deploy edin.</p>
+            <h3 class="text-lg font-medium text-white mb-3">3. Compare and Deploy</h3>
+            <p class="text-sm text-gray-400 mb-3">Compare changes and deploy them.</p>
             <div class="flex gap-3">
                 <button onclick="compareFiles()" id="compareBtn" disabled class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors">
-                    Karşılaştır
+                    Compare
                 </button>
                 <button onclick="deployFiles()" id="deployBtn" disabled class="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors">
-                    Deploy Et
+                    Deploy
                 </button>
             </div>
         </div>
 
         <!-- Comparison Results -->
         <div id="comparisonResults" class="hidden">
-            <h3 class="text-lg font-medium text-white mb-3">Değişiklikler</h3>
+            <h3 class="text-lg font-medium text-white mb-3">Changes</h3>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                 <div class="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                    <p class="text-xs text-green-400 uppercase">Yeni</p>
+                    <p class="text-xs text-green-400 uppercase">New</p>
                     <p class="text-2xl font-bold text-green-400" id="addedCount">0</p>
                 </div>
                 <div class="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-                    <p class="text-xs text-yellow-400 uppercase">Değişen</p>
+                    <p class="text-xs text-yellow-400 uppercase">Modified</p>
                     <p class="text-2xl font-bold text-yellow-400" id="modifiedCount">0</p>
                 </div>
                 <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                    <p class="text-xs text-red-400 uppercase">Silinen</p>
+                    <p class="text-xs text-red-400 uppercase">Deleted</p>
                     <p class="text-2xl font-bold text-red-400" id="deletedCount">0</p>
                 </div>
                 <div class="p-3 bg-gray-500/10 border border-gray-500/20 rounded-lg">
-                    <p class="text-xs text-gray-400 uppercase">Değişmeyen</p>
+                    <p class="text-xs text-gray-400 uppercase">Unchanged</p>
                     <p class="text-2xl font-bold text-gray-400" id="unchangedCount">0</p>
                 </div>
             </div>
@@ -138,11 +138,11 @@
         <div id="deployOptions" class="hidden mt-4 p-4 bg-gray-800/50 rounded-lg">
             <label class="flex items-center gap-2 text-sm text-gray-300">
                 <input type="checkbox" id="restartAfterDeploy" checked class="rounded bg-gray-700 border-gray-600">
-                Deployment sonrası uygulamayı yeniden başlat
+                Restart application after deployment
             </label>
             <div class="mt-3">
-                <label class="block text-sm text-gray-400 mb-1">Açıklama (opsiyonel)</label>
-                <input type="text" id="deployDescription" placeholder="Bu deployment hakkında not..." 
+                <label class="block text-sm text-gray-400 mb-1">Description (optional)</label>
+                <input type="text" id="deployDescription" placeholder="Note about this deployment..." 
                        class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500">
             </div>
         </div>
@@ -150,17 +150,17 @@
 
     <!-- Deployment History -->
     <div class="glass-card rounded-2xl p-6">
-        <h2 class="text-xl font-semibold text-white mb-4">Deployment Geçmişi</h2>
+        <h2 class="text-xl font-semibold text-white mb-4">Deployment History</h2>
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead>
                     <tr class="text-left text-gray-400 text-sm border-b border-gray-700">
-                        <th class="pb-3 pr-4">Tarih</th>
-                        <th class="pb-3 pr-4">Değişen</th>
-                        <th class="pb-3 pr-4">Silinen</th>
-                        <th class="pb-3 pr-4">Boyut</th>
-                        <th class="pb-3 pr-4">Durum</th>
-                        <th class="pb-3">Açıklama</th>
+                        <th class="pb-3 pr-4">Date</th>
+                        <th class="pb-3 pr-4">Changed</th>
+                        <th class="pb-3 pr-4">Deleted</th>
+                        <th class="pb-3 pr-4">Size</th>
+                        <th class="pb-3 pr-4">Status</th>
+                        <th class="pb-3">Description</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -179,7 +179,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="py-8 text-center text-gray-500">Henüz deployment yapılmamış</td>
+                        <td colspan="6" class="py-8 text-center text-gray-500">No deployments yet</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -194,8 +194,8 @@
         <div class="p-6 border-b border-gray-700">
             <div class="flex items-center justify-between">
                 <div>
-                    <h2 class="text-xl font-bold text-white">Dosya ve Klasörleri Seç</h2>
-                    <p class="text-sm text-gray-400 mt-1">Deploy edilecek dosyaları seçin veya hariç tutun</p>
+                    <h2 class="text-xl font-bold text-white">Select Files and Folders</h2>
+                    <p class="text-sm text-gray-400 mt-1">Select files to deploy or exclude</p>
                 </div>
                 <button type="button" onclick="closeFileSelectionModal()" class="text-gray-400 hover:text-white transition-colors">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,20 +205,20 @@
             </div>
             <div class="flex items-center gap-2 mt-4 flex-wrap">
                 <button type="button" onclick="selectAllFiles()" class="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
-                    ✓ Tümünü Seç
+                    ✓ Select All
                 </button>
                 <button type="button" onclick="deselectAllFiles()" class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors">
-                    ✗ Tümünü Kaldır
+                    ✗ Deselect All
                 </button>
                 <button type="button" onclick="excludeCommonFolders()" class="px-3 py-1.5 text-sm bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors">
-                    🚫 Yaygın Klasörleri Hariç Tut
+                    🚫 Exclude Common Folders
                 </button>
                 <button type="button" onclick="toggleShowFiles()" id="toggleFilesBtn" class="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                    📄 Dosyaları Göster
+                    📄 Show Files
                 </button>
             </div>
             <div class="mt-3 text-sm text-gray-400">
-                Seçili: <span id="selectedFileCount" class="font-bold text-indigo-400">0</span> / <span id="totalFileCount">0</span> dosya
+                Selected: <span id="selectedFileCount" class="font-bold text-indigo-400">0</span> / <span id="totalFileCount">0</span> files
             </div>
         </div>
         <div class="flex-1 overflow-y-auto p-4 bg-gray-900/50">
@@ -226,10 +226,10 @@
         </div>
         <div class="p-4 border-t border-gray-700 flex justify-end gap-3">
             <button type="button" onclick="closeFileSelectionModal()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
-                İptal
+                Cancel
             </button>
             <button type="button" onclick="confirmFileSelection()" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
-                Seçimi Onayla
+                Confirm Selection
             </button>
         </div>
     </div>
@@ -268,18 +268,18 @@ async function updateAppState(shouldRun, autoRestart) {
         });
         const data = await response.json();
         if (!data.success) {
-            alert('Güncelleme başarısız: ' + (data.error || 'Bilinmeyen hata'));
+            alert('Update failed: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Hata: ' + error.message);
+        alert('Error: ' + error.message);
     }
 }
 
 async function getServerManifest() {
     const btn = document.getElementById('getManifestBtn');
     btn.disabled = true;
-    btn.textContent = 'Yükleniyor...';
+    btn.textContent = 'Loading...';
     
     try {
         const response = await fetch(`/api/deployment/${projectId}/manifest`);
@@ -291,14 +291,14 @@ async function getServerManifest() {
             document.getElementById('manifestStatus').classList.remove('hidden');
             updateCompareButton();
         } else {
-            alert('Hata: ' + data.error);
+            alert('Error: ' + data.error);
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Hata: ' + error.message);
+        alert('Error: ' + error.message);
     } finally {
         btn.disabled = false;
-        btn.textContent = 'Manifest Al';
+        btn.textContent = 'Get Manifest';
     }
 }
 
@@ -311,7 +311,7 @@ document.getElementById('folderInput').addEventListener('change', async function
     
     const statusDiv = document.getElementById('localFilesStatus');
     statusDiv.classList.remove('hidden');
-    document.getElementById('localFileCount').textContent = 'İşleniyor...';
+    document.getElementById('localFileCount').textContent = 'Processing...';
     document.getElementById('reviewFilesBtn').classList.remove('hidden');
     
     // Initialize all non-ignored files as selected
@@ -328,7 +328,7 @@ document.getElementById('folderInput').addEventListener('change', async function
 
 async function processSelectedFiles() {
     localFiles = {};
-    document.getElementById('localFileCount').textContent = 'İşleniyor...';
+    document.getElementById('localFileCount').textContent = 'Processing...';
     
     for (const idx of selectedFiles) {
         const file = allFiles[idx];
@@ -345,7 +345,7 @@ async function processSelectedFiles() {
                 hash = await calculateFileHash(file);
             } catch (error) {
                 console.error('Hash calculation failed:', error);
-                alert('Dosya hash hesaplama başarısız: ' + (error?.message || error));
+                alert('File hash calculation failed: ' + (error?.message || error));
                 document.getElementById('localFileCount').textContent = '0';
                 localFiles = {};
                 updateCompareButton();
@@ -366,7 +366,7 @@ async function processSelectedFiles() {
 // Modal functions
 function openFileSelectionModal() {
     if (allFiles.length === 0) {
-        alert('Önce bir klasör seçin');
+        alert('Please select a folder first');
         return;
     }
     buildFileTree();
@@ -428,11 +428,11 @@ function toggleShowFiles() {
     showFilesInTree = !showFilesInTree;
     const btn = document.getElementById('toggleFilesBtn');
     if (showFilesInTree) {
-        btn.textContent = '📁 Dosyaları Gizle';
+        btn.textContent = '📁 Hide Files';
         btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
         btn.classList.add('bg-green-600', 'hover:bg-green-700');
     } else {
-        btn.textContent = '📄 Dosyaları Göster';
+        btn.textContent = '📄 Show Files';
         btn.classList.remove('bg-green-600', 'hover:bg-green-700');
         btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
     }
@@ -748,7 +748,7 @@ function updateCompareButton() {
 async function compareFiles() {
     const btn = document.getElementById('compareBtn');
     btn.disabled = true;
-    btn.textContent = 'Karşılaştırılıyor...';
+    btn.textContent = 'Comparing...';
     
     try {
         // Prepare local files for comparison (without file objects)
@@ -771,14 +771,14 @@ async function compareFiles() {
             document.getElementById('deployBtn').disabled = data.total_changes === 0;
             document.getElementById('deployOptions').classList.toggle('hidden', data.total_changes === 0);
         } else {
-            alert('Hata: ' + data.error);
+            alert('Error: ' + data.error);
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Hata: ' + error.message);
+        alert('Error: ' + error.message);
     } finally {
         btn.disabled = false;
-        btn.textContent = 'Karşılaştır';
+        btn.textContent = 'Compare';
     }
 }
 
@@ -806,7 +806,7 @@ function displayComparison(diff) {
     });
     
     if (!html) {
-        html = '<div class="py-4 text-center text-gray-500">Değişiklik yok</div>';
+        html = '<div class="py-4 text-center text-gray-500">No changes</div>';
     }
     
     filesList.innerHTML = html;
@@ -814,23 +814,23 @@ function displayComparison(diff) {
 
 async function deployFiles() {
     if (!comparisonDiff) {
-        alert('Önce dosyaları karşılaştırın');
+        alert('Please compare files first');
         return;
     }
     
     const totalChanges = comparisonDiff.added.length + comparisonDiff.modified.length + comparisonDiff.deleted.length;
     if (totalChanges === 0) {
-        alert('Deploy edilecek değişiklik yok');
+        alert('No changes to deploy');
         return;
     }
     
-    if (!confirm(`${totalChanges} dosya değişikliği deploy edilecek. Devam etmek istiyor musunuz?`)) {
+    if (!confirm(`${totalChanges} file changes will be deployed. Do you want to continue?`)) {
         return;
     }
     
     const btn = document.getElementById('deployBtn');
     btn.disabled = true;
-    btn.textContent = 'Deploy ediliyor...';
+    btn.textContent = 'Deploying...';
     
     try {
         // Prepare package with file contents
@@ -863,21 +863,21 @@ async function deployFiles() {
         const data = await response.json();
         
         if (data.success) {
-            let message = `Deployment başarılı!\n- ${data.applied} dosya güncellendi\n- ${data.deleted} dosya silindi`;
+            let message = `Deployment successful!\n- ${data.applied} files updated\n- ${data.deleted} files deleted`;
             if (data.restarted) {
-                message += '\n- Uygulama yeniden başlatıldı';
+                message += '\n- Application restarted';
             }
             alert(message);
             location.reload();
         } else {
-            alert('Deployment başarısız: ' + (data.errors?.join(', ') || 'Bilinmeyen hata'));
+            alert('Deployment failed: ' + (data.errors?.join(', ') || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Hata: ' + error.message);
+        alert('Error: ' + error.message);
     } finally {
         btn.disabled = false;
-        btn.textContent = 'Deploy Et';
+        btn.textContent = 'Deploy';
     }
 }
 

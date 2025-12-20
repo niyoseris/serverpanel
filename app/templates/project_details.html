@@ -84,6 +84,11 @@
                 class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors">
                 Logs
             </button>
+            <button @click="tab = 'migrations'; loadProjectMigrations();"
+                :class="{ 'border-indigo-500 text-indigo-500': tab === 'migrations', 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300': tab !== 'migrations' }"
+                class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                Migrations
+            </button>
         </nav>
     </div>
 
@@ -569,8 +574,192 @@
             </div>
         </div>
     </div>
+
+    <!-- Migrations -->
+    <div x-show="tab === 'migrations'" class="space-y-6" style="display: none;">
+        <div class="glass-card rounded-2xl p-6">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h3 class="text-lg font-medium text-white">Database Migrations</h3>
+                    <p class="text-sm text-gray-400 mt-1">Proje veritabanı migration yönetimi</p>
+                </div>
+                <button onclick="loadProjectMigrations()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white text-sm transition-colors">
+                    Yenile
+                </button>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <button onclick="initProjectDb()" class="p-3 bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 rounded-lg text-left transition-colors">
+                    <div class="text-green-400 font-medium text-sm">DB Başlat</div>
+                    <div class="text-xs text-gray-400 mt-1">create_all()</div>
+                </button>
+                <button onclick="runFlaskMigrate('upgrade')" class="p-3 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 rounded-lg text-left transition-colors">
+                    <div class="text-indigo-400 font-medium text-sm">Flask Upgrade</div>
+                    <div class="text-xs text-gray-400 mt-1">flask db upgrade</div>
+                </button>
+                <button onclick="runFlaskMigrate('migrate')" class="p-3 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 rounded-lg text-left transition-colors">
+                    <div class="text-purple-400 font-medium text-sm">Flask Migrate</div>
+                    <div class="text-xs text-gray-400 mt-1">flask db migrate</div>
+                </button>
+                <button onclick="runDjangoMigrate('migrate')" class="p-3 bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-500/30 rounded-lg text-left transition-colors">
+                    <div class="text-yellow-400 font-medium text-sm">Django Migrate</div>
+                    <div class="text-xs text-gray-400 mt-1">python manage.py migrate</div>
+                </button>
+            </div>
+
+            <!-- Migration Files -->
+            <div class="mb-6">
+                <h4 class="text-md font-medium text-white mb-3">Migration Dosyaları</h4>
+                <div id="projectMigrationsList" class="space-y-2">
+                    <p class="text-gray-400 text-sm">Yükleniyor...</p>
+                </div>
+            </div>
+
+            <!-- Output -->
+            <div>
+                <h4 class="text-md font-medium text-white mb-3">Çıktı</h4>
+                <div id="projectMigrationOutput" class="bg-gray-900 rounded-lg p-4 border border-gray-700 font-mono text-sm text-gray-300 max-h-80 overflow-y-auto">
+                    <p class="text-gray-500">Migration çalıştırıldığında çıktı burada görünecek...</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Alpine.js for Tabs -->
 <script src="//unpkg.com/alpinejs" defer></script>
+
+<script>
+const PROJECT_ID = {{ project.id }};
+
+function loadProjectMigrations() {
+    fetch(`/api/project/${PROJECT_ID}/migrations`)
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('projectMigrationsList');
+            if (data.success && data.migrations.length > 0) {
+                let html = '';
+                data.migrations.forEach(m => {
+                    const typeColor = m.type === 'django' ? 'text-yellow-400' : 'text-indigo-400';
+                    const typeBadge = m.type === 'django' ? 'Django' : 'Standalone';
+                    html += `<div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-white font-medium text-sm truncate">${m.name}</span>
+                                <span class="px-2 py-0.5 text-xs rounded ${typeColor} bg-gray-700">${typeBadge}</span>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-1 truncate">${m.description}</p>
+                            <p class="text-xs text-gray-500 font-mono mt-1">${m.rel_path}</p>
+                        </div>
+                        <button onclick="runProjectMigration('${m.rel_path}')" class="ml-3 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded text-white text-xs font-medium transition-colors flex-shrink-0">
+                            Çalıştır
+                        </button>
+                    </div>`;
+                });
+                container.innerHTML = html;
+            } else if (data.success) {
+                container.innerHTML = '<p class="text-gray-400 text-sm">Bu projede migration dosyası bulunamadı.</p>';
+            } else {
+                container.innerHTML = `<p class="text-red-400 text-sm">Hata: ${data.error}</p>`;
+            }
+        })
+        .catch(err => {
+            document.getElementById('projectMigrationsList').innerHTML = `<p class="text-red-400 text-sm">Bağlantı hatası: ${err}</p>`;
+        });
+}
+
+function runProjectMigration(relPath) {
+    if (!confirm(`"${relPath}" migration'ını çalıştırmak istediğinize emin misiniz?`)) return;
+    
+    const output = document.getElementById('projectMigrationOutput');
+    output.innerHTML = '<p class="text-yellow-400">Migration çalıştırılıyor...</p>';
+    
+    fetch(`/api/project/${PROJECT_ID}/migrations/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rel_path: relPath })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            output.innerHTML = `<pre class="text-green-400 whitespace-pre-wrap">${data.output || 'Migration başarıyla tamamlandı!'}</pre>`;
+        } else {
+            output.innerHTML = `<pre class="text-red-400 whitespace-pre-wrap">Hata: ${data.error || data.output}</pre>`;
+        }
+    })
+    .catch(err => {
+        output.innerHTML = `<p class="text-red-400">Bağlantı hatası: ${err}</p>`;
+    });
+}
+
+function initProjectDb() {
+    if (!confirm('Proje veritabanını başlatmak istediğinize emin misiniz?')) return;
+    
+    const output = document.getElementById('projectMigrationOutput');
+    output.innerHTML = '<p class="text-yellow-400">Veritabanı başlatılıyor...</p>';
+    
+    fetch(`/api/project/${PROJECT_ID}/db/init`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            output.innerHTML = `<pre class="text-green-400 whitespace-pre-wrap">${data.output}</pre>`;
+        } else {
+            output.innerHTML = `<pre class="text-red-400 whitespace-pre-wrap">Hata: ${data.error || data.output}</pre>`;
+        }
+    })
+    .catch(err => {
+        output.innerHTML = `<p class="text-red-400">Bağlantı hatası: ${err}</p>`;
+    });
+}
+
+function runFlaskMigrate(command) {
+    const output = document.getElementById('projectMigrationOutput');
+    output.innerHTML = `<p class="text-yellow-400">flask db ${command} çalıştırılıyor...</p>`;
+    
+    fetch(`/api/project/${PROJECT_ID}/migrations/flask-migrate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: command })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            output.innerHTML = `<pre class="text-green-400 whitespace-pre-wrap">${data.output || 'Komut başarıyla tamamlandı!'}</pre>`;
+        } else {
+            output.innerHTML = `<pre class="text-red-400 whitespace-pre-wrap">Hata: ${data.error || data.output}</pre>`;
+        }
+        loadProjectMigrations();
+    })
+    .catch(err => {
+        output.innerHTML = `<p class="text-red-400">Bağlantı hatası: ${err}</p>`;
+    });
+}
+
+function runDjangoMigrate(command) {
+    const output = document.getElementById('projectMigrationOutput');
+    output.innerHTML = `<p class="text-yellow-400">python manage.py ${command} çalıştırılıyor...</p>`;
+    
+    fetch(`/api/project/${PROJECT_ID}/migrations/django`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: command })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            output.innerHTML = `<pre class="text-green-400 whitespace-pre-wrap">${data.output || 'Komut başarıyla tamamlandı!'}</pre>`;
+        } else {
+            output.innerHTML = `<pre class="text-red-400 whitespace-pre-wrap">Hata: ${data.error || data.output}</pre>`;
+        }
+        loadProjectMigrations();
+    })
+    .catch(err => {
+        output.innerHTML = `<p class="text-red-400">Bağlantı hatası: ${err}</p>`;
+    });
+}
+</script>
 {% endblock %}

@@ -6,30 +6,30 @@
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-3xl font-bold text-white">Deployment Manager</h1>
-            <p class="mt-2 text-gray-400">SSH gerektirmeyen, HTTP tabanlı deployment sistemi</p>
+            <p class="mt-2 text-gray-400">HTTP-based deployment system without SSH requirement</p>
         </div>
         <button onclick="restoreAllApps()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Tüm Uygulamaları Başlat
+            Start All Apps
         </button>
     </div>
 
     <!-- App State Overview -->
     <div class="glass-card rounded-2xl p-6">
-        <h2 class="text-xl font-semibold text-white mb-4">Uygulama Durumları</h2>
-        <p class="text-gray-400 text-sm mb-4">Server restart sonrası otomatik başlatılacak uygulamalar</p>
+        <h2 class="text-xl font-semibold text-white mb-4">Application States</h2>
+        <p class="text-gray-400 text-sm mb-4">Applications to be automatically started after server restart</p>
         
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead>
                     <tr class="text-left text-gray-400 text-sm border-b border-gray-700">
-                        <th class="pb-3 pr-4">Proje</th>
-                        <th class="pb-3 pr-4">Mevcut Durum</th>
-                        <th class="pb-3 pr-4">Restart Sonrası</th>
+                        <th class="pb-3 pr-4">Project</th>
+                        <th class="pb-3 pr-4">Current Status</th>
+                        <th class="pb-3 pr-4">After Restart</th>
                         <th class="pb-3 pr-4">Auto-Restart</th>
-                        <th class="pb-3">İşlemler</th>
+                        <th class="pb-3">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="appStatesTable">
@@ -40,7 +40,7 @@
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                Yükleniyor...
+                                Loading...
                             </div>
                         </td>
                     </tr>
@@ -51,13 +51,14 @@
 
     <!-- Projects for Deployment -->
     <div class="glass-card rounded-2xl p-6">
-        <h2 class="text-xl font-semibold text-white mb-4">Projeler</h2>
-        <p class="text-gray-400 text-sm mb-4">Deployment yapmak istediğiniz projeyi seçin</p>
+        <h2 class="text-xl font-semibold text-white mb-4">Projects</h2>
+        <p class="text-gray-400 text-sm mb-4">Select the project you want to deploy</p>
         
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {% for project in projects %}
-            <a href="{{ url_for('main.project_deployment', id=project.id) }}" 
-               class="block p-4 bg-gray-800/50 hover:bg-gray-700/50 rounded-xl border border-gray-700 hover:border-indigo-500 transition-all">
+            <a href="{{ url_for('main.project_versions', id=project.id) }}#deployment" 
+               class="block p-4 bg-gray-800/50 hover:bg-gray-700/50 rounded-xl border border-gray-700 hover:border-indigo-500 transition-all"
+               onclick="localStorage.setItem('versionsActiveTab', 'deployment')">
                 <div class="flex items-center justify-between mb-2">
                     <h3 class="font-semibold text-white">{{ project.name }}</h3>
                     <span class="px-2 py-1 text-xs rounded-full {{ 'bg-green-500/20 text-green-400' if project.status == 'running' else 'bg-gray-500/20 text-gray-400' }}">
@@ -75,7 +76,7 @@
             </a>
             {% else %}
             <div class="col-span-full text-center py-8 text-gray-500">
-                Henüz proje yok. Dashboard'dan yeni proje ekleyin.
+                No projects yet. Add a new project from Dashboard.
             </div>
             {% endfor %}
         </div>
@@ -83,28 +84,28 @@
 
     <!-- How It Works -->
     <div class="glass-card rounded-2xl p-6">
-        <h2 class="text-xl font-semibold text-white mb-4">Nasıl Çalışır?</h2>
+        <h2 class="text-xl font-semibold text-white mb-4">How It Works</h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="text-center">
                 <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-indigo-500/20 flex items-center justify-center">
                     <span class="text-xl font-bold text-indigo-400">1</span>
                 </div>
-                <h3 class="font-medium text-white mb-2">Dosyaları Karşılaştır</h3>
-                <p class="text-sm text-gray-400">Yerel dosyalarınızı server ile karşılaştırın. Sadece değişen dosyalar gösterilir.</p>
+                <h3 class="font-medium text-white mb-2">Compare Files</h3>
+                <p class="text-sm text-gray-400">Compare your local files with the server. Only changed files are shown.</p>
             </div>
             <div class="text-center">
                 <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-indigo-500/20 flex items-center justify-center">
                     <span class="text-xl font-bold text-indigo-400">2</span>
                 </div>
-                <h3 class="font-medium text-white mb-2">Deploy Et</h3>
-                <p class="text-sm text-gray-400">Sadece değişen dosyalar HTTP üzerinden gönderilir. SSH gerekmez.</p>
+                <h3 class="font-medium text-white mb-2">Deploy</h3>
+                <p class="text-sm text-gray-400">Only changed files are sent via HTTP. No SSH required.</p>
             </div>
             <div class="text-center">
                 <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-indigo-500/20 flex items-center justify-center">
                     <span class="text-xl font-bold text-indigo-400">3</span>
                 </div>
-                <h3 class="font-medium text-white mb-2">Otomatik Restart</h3>
-                <p class="text-sm text-gray-400">Deployment sonrası uygulama otomatik yeniden başlatılır.</p>
+                <h3 class="font-medium text-white mb-2">Auto Restart</h3>
+                <p class="text-sm text-gray-400">Application is automatically restarted after deployment.</p>
             </div>
         </div>
     </div>
@@ -131,7 +132,7 @@ function renderAppStates(states) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="5" class="py-8 text-center text-gray-500">
-                    Henüz proje yok.
+                    No projects yet.
                 </td>
             </tr>
         `;
@@ -152,18 +153,18 @@ function renderAppStates(states) {
             </td>
             <td class="py-3 pr-4">
                 <span class="px-2 py-1 text-xs rounded-full ${state.should_run ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'}">
-                    ${state.should_run ? 'Başlatılacak' : 'Başlatılmayacak'}
+                    ${state.should_run ? 'Will Start' : 'Will Not Start'}
                 </span>
             </td>
             <td class="py-3 pr-4">
                 <span class="text-sm ${state.auto_restart ? 'text-green-400' : 'text-gray-500'}">
-                    ${state.auto_restart ? 'Aktif' : 'Pasif'}
+                    ${state.auto_restart ? 'Active' : 'Inactive'}
                 </span>
             </td>
             <td class="py-3">
                 <button onclick="toggleShouldRun(${state.project_id}, ${!state.should_run})" 
                         class="px-3 py-1 text-xs rounded-lg ${state.should_run ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'} transition-colors">
-                    ${state.should_run ? 'Devre Dışı Bırak' : 'Etkinleştir'}
+                    ${state.should_run ? 'Disable' : 'Enable'}
                 </button>
             </td>
         </tr>
@@ -188,7 +189,7 @@ async function toggleShouldRun(projectId, shouldRun) {
 }
 
 async function restoreAllApps() {
-    if (!confirm('Tüm should_run=True olan uygulamalar başlatılacak. Devam etmek istiyor musunuz?')) {
+    if (!confirm('All apps with should_run=True will be started. Do you want to continue?')) {
         return;
     }
     
@@ -199,13 +200,13 @@ async function restoreAllApps() {
         
         const data = await response.json();
         if (data.success) {
-            alert(`${data.restored_count} uygulama başlatıldı.`);
+            alert(`${data.restored_count} apps started.`);
             loadAppStates();
             location.reload();
         }
     } catch (error) {
         console.error('Error restoring apps:', error);
-        alert('Hata oluştu: ' + error.message);
+        alert('Error occurred: ' + error.message);
     }
 }
 

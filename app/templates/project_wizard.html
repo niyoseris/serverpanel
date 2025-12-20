@@ -13,7 +13,7 @@
             <!-- Project Type Selection -->
             <div>
                 <label class="text-base font-medium text-gray-300 block mb-4">Project Type</label>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <label
                         class="relative flex cursor-pointer rounded-xl border border-gray-700 bg-gray-800/50 p-4 shadow-sm focus:outline-none hover:border-indigo-500 hover:bg-gray-800 transition-all duration-200">
                         <input type="radio" name="project_type" value="flask" class="sr-only peer" checked>
@@ -51,6 +51,26 @@
                                 clip-rule="evenodd" />
                         </svg>
                         <div class="absolute -inset-px rounded-xl border-2 border-transparent peer-checked:border-indigo-500 pointer-events-none"
+                            aria-hidden="true"></div>
+                    </label>
+
+                    <label
+                        class="relative flex cursor-pointer rounded-xl border border-gray-700 bg-gray-800/50 p-4 shadow-sm focus:outline-none hover:border-green-500 hover:bg-gray-800 transition-all duration-200">
+                        <input type="radio" name="project_type" value="nodejs" class="sr-only peer">
+                        <span class="flex flex-1">
+                            <span class="flex flex-col">
+                                <span
+                                    class="block text-sm font-medium text-gray-200 peer-checked:text-green-400">Node.js</span>
+                                <span class="mt-1 flex items-center text-xs text-gray-500">JavaScript Runtime</span>
+                            </span>
+                        </span>
+                        <svg class="h-5 w-5 text-green-500 hidden peer-checked:block" viewBox="0 0 20 20"
+                            fill="currentColor">
+                            <path fill-rule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        <div class="absolute -inset-px rounded-xl border-2 border-transparent peer-checked:border-green-500 pointer-events-none"
                             aria-hidden="true"></div>
                     </label>
                 </div>
@@ -91,9 +111,9 @@
                     <div class="mt-1">
                         <input type="text" name="entry_point" id="entry_point"
                             class="block w-full rounded-lg border-gray-600 bg-gray-700/50 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-3 px-4 transition-colors"
-                            placeholder="app:app (Auto-detected if empty)">
+                            placeholder="app:app or npm start (Auto-detected)">
                     </div>
-                    <p class="mt-2 text-sm text-gray-500">Leave empty to auto-detect (app.py, run.py, etc.)</p>
+                    <p class="mt-2 text-sm text-gray-500">Leave empty to auto-detect. Python: app.py, run.py | Node.js: package.json scripts</p>
                 </div>
 
                 <div class="sm:col-span-6">
